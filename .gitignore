@@ -11,3 +11,5 @@ VigilApp/Vigil.xcodeproj/
 
 # macOS
 .DS_Store
+
+.specs/
