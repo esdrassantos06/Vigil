@@ -81,3 +81,36 @@ struct MetronomeLiveTests {
         #expect(metronome.beatInBar != before || metronome.beatInBar != 0)
     }
 }
+
+/// The click has to survive a main actor that is not answering: on stage a stall in the UI
+/// must not stop the count.
+@MainActor
+@Suite("Metronome under a stalled main actor")
+struct MetronomeStallTests {
+
+    @Test("Clicks keep coming while the main actor is blocked")
+    func keepsClickingThroughAStall() async throws {
+        let graph = AudioGraph()
+        let metronome = MetronomeEngine(graph: graph, catalog: FactoryCatalog())
+        LiveLevel.hush(metronome)
+        metronome.bpm = 240
+        metronome.accentFirst = false
+        try graph.start()
+
+        let capture = AudioCapture()
+        capture.attach(to: graph)
+        metronome.start()
+
+        // Busy wait, so the main actor cannot run the pump task or anything else.
+        let stall = 2.5
+        let deadline = Date().addingTimeInterval(stall)
+        while Date() < deadline { }
+
+        metronome.stop()
+        capture.detach(from: graph)
+
+        // 240 BPM is a click every 250ms, so a 2.5s stall should carry about ten.
+        let clicks = capture.onsets().count
+        #expect(clicks >= 9, "only \(clicks) clicks survived the stall")
+    }
+}

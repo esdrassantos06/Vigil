@@ -50,6 +50,91 @@ enum ClickSound: String, CaseIterable, Codable, Sendable {
     }
 }
 
+/// Fills the click queue from outside the main actor, because the count has to keep going
+/// while the UI is busy. Scheduling on `AVAudioPlayerNode` is thread safe and everything else
+/// here is behind the lock, which is what the unchecked conformance rests on.
+final class ClickScheduler: @unchecked Sendable {
+    private let lock = NSLock()
+    /// Held so the graph cannot be torn down while this can still schedule on its node.
+    private let engine: AVAudioEngine
+    private let player: AVAudioPlayerNode
+    private let normal: AVAudioPCMBuffer
+    private let accent: AVAudioPCMBuffer
+    private let sampleRate: Double
+    private let samplesPerBeat: Double
+    private let beatsPerBar: Int
+    private var accentFirst: Bool
+    private var nextBeatSample: Double = 0
+    private var beatCounter = 0
+
+    init(engine: AVAudioEngine,
+         player: AVAudioPlayerNode,
+         normal: AVAudioPCMBuffer,
+         accent: AVAudioPCMBuffer,
+         sampleRate: Double,
+         samplesPerBeat: Double,
+         beatsPerBar: Int,
+         accentFirst: Bool) {
+        self.engine = engine
+        self.player = player
+        self.normal = normal
+        self.accent = accent
+        self.sampleRate = sampleRate
+        self.samplesPerBeat = samplesPerBeat
+        self.beatsPerBar = beatsPerBar
+        self.accentFirst = accentFirst
+    }
+
+    /// `lastRenderTime` is node time and the player resets on every `play()`. Scheduling in
+    /// node time throws the click far into the future and nothing sounds.
+    static func playerSample(of player: AVAudioPlayerNode) -> AVAudioFramePosition? {
+        guard let nodeTime = player.lastRenderTime,
+              nodeTime.isSampleTimeValid || nodeTime.isHostTimeValid,
+              let playerTime = player.playerTime(forNodeTime: nodeTime)
+        else { return nil }
+        return playerTime.sampleTime
+    }
+
+    /// Places beat zero. With no player clock yet the first click goes out immediately.
+    /// - Returns: the sample the first beat sits on.
+    func begin() -> Double {
+        lock.withLock {
+            guard let now = Self.playerSample(of: player) else {
+                player.scheduleBuffer(accentFirst ? accent : normal, at: nil,
+                                      options: [], completionHandler: nil)
+                nextBeatSample = samplesPerBeat
+                beatCounter = 1
+                return 0
+            }
+            nextBeatSample = Double(now) + sampleRate * 0.1
+            beatCounter = 0
+            return nextBeatSample
+        }
+    }
+
+    /// Toggling the accent must not restart the count, so it changes in place.
+    func setAccentFirst(_ value: Bool) {
+        lock.withLock { accentFirst = value }
+    }
+
+    func fill(horizonSeconds: Double) {
+        lock.withLock {
+            let now = Double(Self.playerSample(of: player) ?? 0)
+            let horizon = now + sampleRate * horizonSeconds
+
+            while nextBeatSample < horizon {
+                let isDownbeat = beatCounter % beatsPerBar == 0
+                let buffer = (accentFirst && isDownbeat) ? accent : normal
+                let time = AVAudioTime(sampleTime: AVAudioFramePosition(nextBeatSample.rounded()),
+                                       atRate: sampleRate)
+                player.scheduleBuffer(buffer, at: time, options: [], completionHandler: nil)
+                nextBeatSample += samplesPerBeat
+                beatCounter += 1
+            }
+        }
+    }
+}
+
 /// Scheduled ahead in `AVAudioTime` rather than off a UI timer, which drifts audibly.
 @MainActor
 @Observable
@@ -59,7 +144,8 @@ final class MetronomeEngine {
     /// Which beat of the bar is sounding, from the player's own clock. Reading it off the
     /// scheduler instead would report how far the queue was filled, which is seconds ahead.
     var beatInBar: Int {
-        guard isRunning, let now = currentPlayerSample(), samplesPerBeat > 0 else { return 0 }
+        guard isRunning, samplesPerBeat > 0,
+              let now = ClickScheduler.playerSample(of: player) else { return 0 }
         let elapsed = Double(now) - firstBeatSample
         guard elapsed >= 0 else { return 0 }
         return Int(elapsed / samplesPerBeat) % timeSignature.beatsPerBar
@@ -67,7 +153,7 @@ final class MetronomeEngine {
 
     var bpm: Double = 120 { didSet { restartIfRunning() } }
     var timeSignature: TimeSignature = .fourFour { didSet { restartIfRunning() } }
-    var accentFirst = true
+    var accentFirst = true { didSet { clicks?.setAccentFirst(accentFirst) } }
     var doubleTime = false { didSet { restartIfRunning() } }
     var volume: Double = 0.8 { didSet { player.volume = Float(volume) } }
     var pan: Double = 0 { didSet { player.pan = Float(pan) } }
@@ -78,12 +164,9 @@ final class MetronomeEngine {
     @ObservationIgnored private let player = AVAudioPlayerNode()
     @ObservationIgnored private(set) var normalBuffer: AVAudioPCMBuffer?
     @ObservationIgnored private(set) var accentBuffer: AVAudioPCMBuffer?
-    @ObservationIgnored private var scheduler: Task<Void, Never>?
-    /// Double accumulator: truncating samples per beat costs about 76ms of drift over half
-    /// an hour at 128 BPM. Rounding happens only when scheduling.
-    @ObservationIgnored private var nextBeatSample: Double = 0
+    @ObservationIgnored private var clicks: ClickScheduler?
+    @ObservationIgnored private var pump: Task<Void, Never>?
     @ObservationIgnored private var firstBeatSample: Double = 0
-    @ObservationIgnored private var beatCounter = 0
     @ObservationIgnored private var tapTimes: [Date] = []
 
     var sampleRate: Double {
@@ -94,16 +177,6 @@ final class MetronomeEngine {
         let effective = bpm * (doubleTime ? 2 : 1)
         let quarterSeconds = 60.0 / effective
         return sampleRate * quarterSeconds * (4.0 / Double(timeSignature.beatUnit))
-    }
-
-    /// `lastRenderTime` is node time and the player resets on every `play()`. Scheduling in
-    /// node time throws the click far into the future and nothing sounds.
-    private func currentPlayerSample() -> AVAudioFramePosition? {
-        guard let nodeTime = player.lastRenderTime,
-              nodeTime.isSampleTimeValid || nodeTime.isHostTimeValid,
-              let playerTime = player.playerTime(forNodeTime: nodeTime)
-        else { return nil }
-        return playerTime.sampleTime
     }
 
     init(graph: AudioGraph, catalog: FactoryCatalog) {
@@ -121,33 +194,35 @@ final class MetronomeEngine {
     func toggle() { isRunning ? stop() : start() }
 
     func start() {
-        guard !isRunning, normalBuffer != nil else { return }
+        guard !isRunning, let normal = normalBuffer, let accent = accentBuffer else { return }
         isRunning = true
-        beatCounter = 0
         player.play()
 
-        guard let now = currentPlayerSample() else {
-            if let first = accentFirst ? accentBuffer : normalBuffer {
-                player.scheduleBuffer(first, at: nil, options: [], completionHandler: nil)
-            }
-            nextBeatSample = samplesPerBeat
-            firstBeatSample = 0
-            beatCounter = 1
-            scheduleAhead()
-            if autoSchedules { startScheduler() }
-            return
-        }
-        nextBeatSample = Double(now) + sampleRate * 0.1
-        firstBeatSample = nextBeatSample
-        scheduleAhead()
-        if autoSchedules { startScheduler() }
+        let scheduler = ClickScheduler(
+            engine: graph.engine,
+            player: player,
+            normal: normal,
+            accent: accent,
+            sampleRate: sampleRate,
+            samplesPerBeat: samplesPerBeat,
+            beatsPerBar: timeSignature.beatsPerBar,
+            accentFirst: accentFirst
+        )
+        clicks = scheduler
+        // The first bars are queued before any task exists, so nothing can leave the
+        // downbeat silent.
+        firstBeatSample = scheduler.begin()
+        scheduler.fill(horizonSeconds: Self.scheduleHorizon)
+        if autoSchedules { startPump(scheduler) }
     }
 
-    private func startScheduler() {
-        scheduler = Task { [weak self] in
+    /// Weakly held: an engine dropped without `stop()` has to end the pump, or it would keep
+    /// scheduling on a graph nobody owns any more.
+    private func startPump(_ scheduler: ClickScheduler) {
+        pump = Task.detached(priority: .userInitiated) { [weak scheduler] in
             while !Task.isCancelled {
-                guard let self, self.isRunning else { return }
-                self.scheduleAhead()
+                guard let scheduler else { return }
+                scheduler.fill(horizonSeconds: MetronomeEngine.scheduleHorizon)
                 try? await Task.sleep(for: .milliseconds(50))
             }
         }
@@ -155,8 +230,9 @@ final class MetronomeEngine {
 
     func stop() {
         isRunning = false
-        scheduler?.cancel()
-        scheduler = nil
+        pump?.cancel()
+        pump = nil
+        clicks = nil
         player.stop()
     }
 
@@ -172,23 +248,13 @@ final class MetronomeEngine {
         bpm = min(300, max(20, (60.0 / average).rounded()))
     }
 
-    static let scheduleHorizon: Double = 2
+    /// How far ahead clicks are queued. The pump refills from a detached task, so this only
+    /// has to outlast a scheduling hiccup, not a stalled main actor.
+    nonisolated static let scheduleHorizon: Double = 2
 
+    /// Offline rendering outruns the wall clock, so those tests pump this themselves.
     func scheduleAhead() {
-        guard let normal = normalBuffer, let accent = accentBuffer else { return }
-        let now = Double(currentPlayerSample() ?? 0)
-        let horizon = now + sampleRate * Self.scheduleHorizon
-
-        while nextBeatSample < horizon {
-            let isDownbeat = beatCounter % timeSignature.beatsPerBar == 0
-            let buffer = (accentFirst && isDownbeat) ? accent : normal
-            let time = AVAudioTime(sampleTime: AVAudioFramePosition(nextBeatSample.rounded()), atRate: sampleRate)
-
-            player.scheduleBuffer(buffer, at: time, options: [], completionHandler: nil)
-
-            nextBeatSample += samplesPerBeat
-            beatCounter += 1
-        }
+        clicks?.fill(horizonSeconds: Self.scheduleHorizon)
     }
 
     private func restartIfRunning() {
