@@ -205,12 +205,19 @@ final class AppModel {
         } catch {
             toasts.error(t("Não foi possível iniciar o áudio."))
         }
+        reportAudioSetup(graph.setupFailure)
         tonal.warm()
         startMidi()
 
         if !restorePads() {
             loadDefaultKit()
         }
+    }
+
+    /// - Parameter failure: what the audio session refused to do while the graph was built.
+    func reportAudioSetup(_ failure: (any VigilError)?) {
+        guard let failure else { return }
+        toasts.error(message(for: failure))
     }
 
     func startMidi() {

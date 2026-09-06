@@ -139,6 +139,18 @@ final class DrumEngine {
     }
 }
 
+/// The output could not be prepared. On iOS this is the difference between playing and
+/// opening silent, so it is an error the user sees.
+enum AudioSessionError: VigilError {
+    case sessionUnavailable
+
+    var messageKey: String.LocalizationValue {
+        switch self {
+        case .sessionUnavailable: "Não foi possível preparar a saída de áudio. Pode não sair som."
+        }
+    }
+}
+
 enum AudioError: VigilError {
     case bufferAllocationFailed
 

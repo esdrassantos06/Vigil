@@ -3944,6 +3944,35 @@
           }
         }
       }
+    },
+    "Não foi possível preparar a saída de áudio. Pode não sair som.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The audio output could not be prepared. There may be no sound."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo preparar la salida de audio. Puede que no haya sonido."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La sortie audio n'a pas pu être préparée. Il se peut qu'il n'y ait aucun son."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível preparar a saída de áudio. Pode não sair som."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
