@@ -22,12 +22,15 @@ machine, the way an Electron app ships its source. Ad-hoc signing, no developer 
 
 - **Tonal pad.** Twelve chromatic notes, one sounding at a time, looped, with an equal-power
   crossfade on the change. Every note is its own recording, so nothing is pitch shifted.
-- **Drum pads.** Eight one-shots with immediate retrigger, per pad volume and colour, and a
-  hard stop that leaves the tonal pad playing.
+- **Drum pads.** Eight one-shots with immediate retrigger, eight voices each so a fast repeat
+  rings over the last one instead of cutting it, and a play mode per pad, the way a drum
+  program has it: overlap, or restart for a long one-shot you do not want stacking. Per pad
+  volume and colour, and a hard stop that leaves the tonal pad playing.
 - **Kits and sets.** A kit owns the eight pads; a set carries the tonal sound, the filters, the
   metronome and which kit is active. Both save themselves as you work.
 - **Metronome.** 20 to 300 BPM, six time signatures, tap tempo, four click sounds, accent on
-  the downbeat, double time. Scheduled ahead in sample time rather than off a UI timer.
+  the downbeat, double time. Scheduled ahead in sample time rather than off a UI timer, and
+  refilled from outside the main actor, so a busy interface cannot silence the count.
 - **MIDI.** CoreMIDI input with hot-plug, a channel filter, and MIDI Learn over every pad,
   every live control and the metronome. Computer keys and MIDI share one mapping table, and
   each target holds one of each.
