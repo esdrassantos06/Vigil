@@ -69,6 +69,19 @@ struct CodableTests {
         #expect(decoded == original)
     }
 
+    @Test("A stored value outside the range is pulled back in")
+    func clampingOutOfRange() {
+        var stale = Settings()
+        stale.cutoff = 12_000
+        stale.highpass = 5
+        stale.bpm = 900
+
+        let fixed = stale.clamped()
+        #expect(Settings.cutoffRange.contains(fixed.cutoff))
+        #expect(Settings.highpassRange.contains(fixed.highpass))
+        #expect(Settings.bpmRange.contains(fixed.bpm))
+    }
+
     @Test("PadSource in all three cases")
     func padSource() throws {
         let id = UUID()

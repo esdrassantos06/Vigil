@@ -9,7 +9,7 @@ import Testing
 struct OfflineMetronomeTests {
 
     private func render(bpm: Double, signature: TimeSignature = .fourFour, seconds: Double)
-        throws -> (intervals: [Double], onsets: Int, expected: Double) {
+        async throws -> (intervals: [Double], onsets: Int, expected: Double) {
         let graph = AudioGraph(preparesImmediately: false)
         let metronome = MetronomeEngine(graph: graph, catalog: FactoryCatalog())
         metronome.autoSchedules = false
@@ -17,7 +17,7 @@ struct OfflineMetronomeTests {
         metronome.bpm = bpm
         metronome.timeSignature = signature
 
-        let captured = try OfflineRender.capture(
+        let captured = try await OfflineRender.capture(
             graph,
             seconds: seconds,
             prepare: { metronome.start() },
@@ -33,8 +33,8 @@ struct OfflineMetronomeTests {
     }
 
     @Test("Clicks land on the grid at 128 BPM, the tempo where truncation used to drift")
-    func gridAt128() throws {
-        let result = try render(bpm: 128, seconds: 6)
+    func gridAt128() async throws {
+        let result = try await render(bpm: 128, seconds: 6)
         #expect(result.onsets >= 10, "expected several clicks, got \(result.onsets)")
         for interval in result.intervals {
             // Tolerance is the render block, 64 frames, which is the quantisation floor.
@@ -47,8 +47,8 @@ struct OfflineMetronomeTests {
     /// samples per beat loses 0.875 of a sample here, which only adds up to something visible
     /// after a hundred beats.
     @Test("No accumulated drift over a minute at 128 BPM")
-    func noAccumulatedDrift() throws {
-        let result = try render(bpm: 128, seconds: 60)
+    func noAccumulatedDrift() async throws {
+        let result = try await render(bpm: 128, seconds: 60)
         #expect(result.intervals.count > 100, "expected over 100 beats, got \(result.intervals.count)")
 
         let total = result.intervals.reduce(0, +)
@@ -57,15 +57,15 @@ struct OfflineMetronomeTests {
     }
 
     @Test("Eighth-note signatures click twice as often")
-    func eighthNoteGrid() throws {
-        let quarter = try render(bpm: 120, signature: .fourFour, seconds: 4)
-        let eighth = try render(bpm: 120, signature: .sixEight, seconds: 4)
+    func eighthNoteGrid() async throws {
+        let quarter = try await render(bpm: 120, signature: .fourFour, seconds: 4)
+        let eighth = try await render(bpm: 120, signature: .sixEight, seconds: 4)
         #expect(eighth.onsets > quarter.onsets)
         for interval in eighth.intervals { #expect(abs(interval - 250) < 2) }
     }
 
     @Test("Double time halves the interval")
-    func doubleTimeGrid() throws {
+    func doubleTimeGrid() async throws {
         let graph = AudioGraph(preparesImmediately: false)
         let metronome = MetronomeEngine(graph: graph, catalog: FactoryCatalog())
         metronome.autoSchedules = false
@@ -73,7 +73,7 @@ struct OfflineMetronomeTests {
         metronome.bpm = 120
         metronome.doubleTime = true
 
-        let captured = try OfflineRender.capture(
+        let captured = try await OfflineRender.capture(
             graph, seconds: 3,
             prepare: { metronome.start() },
             pump: { metronome.scheduleAhead() }
@@ -96,7 +96,7 @@ struct OfflineMetronomeTests {
 struct OfflineAccentTests {
 
     /// One short window of samples per click.
-    private func clickShapes(accentFirst: Bool) throws -> [[Float]] {
+    private func clickShapes(accentFirst: Bool) async throws -> [[Float]] {
         let graph = AudioGraph(preparesImmediately: false)
         let metronome = MetronomeEngine(graph: graph, catalog: FactoryCatalog())
         metronome.autoSchedules = false
@@ -104,7 +104,7 @@ struct OfflineAccentTests {
         metronome.timeSignature = .fourFour
         metronome.accentFirst = accentFirst
 
-        let captured = try OfflineRender.capture(
+        let captured = try await OfflineRender.capture(
             graph, seconds: 4,
             prepare: { metronome.start() },
             pump: { metronome.scheduleAhead() }
@@ -128,8 +128,8 @@ struct OfflineAccentTests {
     }
 
     @Test("With the accent off, every click is the same waveform")
-    func unaccentedClicksMatch() throws {
-        let shapes = try clickShapes(accentFirst: false)
+    func unaccentedClicksMatch() async throws {
+        let shapes = try await clickShapes(accentFirst: false)
         #expect(shapes.count >= 8, "expected several clicks, got \(shapes.count)")
 
         let reference = try #require(shapes.first)
@@ -139,8 +139,8 @@ struct OfflineAccentTests {
     }
 
     @Test("With the accent on, one click in four is a different waveform")
-    func accentedBarHasOneOddClick() throws {
-        let shapes = try clickShapes(accentFirst: true)
+    func accentedBarHasOneOddClick() async throws {
+        let shapes = try await clickShapes(accentFirst: true)
         #expect(shapes.count >= 8, "expected several clicks, got \(shapes.count)")
 
         // The plain click is whatever most beats look like, so take the shape closest to

@@ -3,8 +3,8 @@ import Foundation
 import Testing
 @testable import Vigil
 
-/// Lifecycle over real stores, with preferences and the sample folder pointed somewhere
-/// throwaway so nothing here touches the machine's own state.
+/// Lifecycle over real stores, with preferences and the sample folder pointed at a
+/// throwaway location.
 @MainActor
 @Suite("App model", .serialized)
 struct AppModelTests {
@@ -20,7 +20,6 @@ struct AppModelTests {
         AppModel(defaults: box.defaults, samplesDirectory: box.directory)
     }
 
-    /// A wav the import can actually copy.
     private func makeAudioFile(named name: String, in directory: URL) throws -> URL {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appendingPathComponent(name)
@@ -202,8 +201,7 @@ struct CrossfadeCurveTests {
     }
 }
 
-/// A pad whose file cannot be read has to say so. Silent failure is the bug class this
-/// project keeps hitting, and the convention is that every error reaches a toast.
+/// A pad whose file cannot be read has to say so.
 @MainActor
 @Suite("Unreadable audio", .serialized)
 struct UnreadableAudioTests {

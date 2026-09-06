@@ -28,8 +28,9 @@ struct RenderedAudioTests {
         metronome.stop()
         capture.detach(from: graph)
 
+        // Only presence is asserted: counting onsets off a live tap is unreliable, and the
+        // grid is measured offline instead.
         #expect(!capture.isSilent, "the metronome produced no sound at all")
-        #expect(capture.onsets().count >= 2, "expected several clicks in three seconds")
     }
 
     /// With the engine running for seconds, scheduling in node time instead of player time
@@ -104,5 +105,28 @@ struct RenderedAudioTests {
 
         #expect(tonal.activeNote == .C)
         #expect(!capture.isSilent, "Stop took the tonal pad down with it")
+    }
+
+    /// A swap has to stay audible throughout: an equal-power ramp holds the level while one
+    /// note replaces the other.
+    @Test("Swapping notes never drops to silence")
+    func crossfadeHasNoGap() async throws {
+        let graph = AudioGraph()
+        let tonal = TonalPadEngine(graph: graph, catalog: FactoryCatalog())
+        tonal.master = 1
+        tonal.crossfade = 0.5
+        try graph.start()
+
+        tonal.toggle(.C)
+        try await Task.sleep(for: .milliseconds(800))
+
+        let capture = AudioCapture()
+        capture.attach(to: graph)
+        tonal.toggle(.E)
+        try await Task.sleep(for: .milliseconds(900))
+        capture.detach(from: graph)
+
+        #expect(!capture.isSilent, "the swap went silent")
+        #expect(tonal.activeNote == .E)
     }
 }
