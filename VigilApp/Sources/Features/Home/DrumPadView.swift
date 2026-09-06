@@ -2,13 +2,13 @@ import SwiftUI
 
 struct DrumPadView: View {
     let pad: DrumPad
-    let isPlaying: Bool
     let kits: [FactoryKit]
     let samples: [Sample]
     let onTap: () -> Void
     let onPickNative: (FactoryKit, Int) -> Void
     let onPickSample: (Sample) -> Void
     let onColor: (PadColor) -> Void
+    let onVoicing: (PadVoicing) -> Void
     let onClear: () -> Void
     let onVolume: (Double) -> Void
 
@@ -46,7 +46,7 @@ struct DrumPadView: View {
                     .tracking(1.0)
                     .foregroundStyle(theme.inkMuted)
                 Spacer(minLength: 0)
-                if isPlaying {
+                if pad.isFlashing {
                     Circle()
                         .fill(theme.accent)
                         .frame(width: 8, height: 8)
@@ -90,17 +90,30 @@ struct DrumPadView: View {
 
     private var padBackground: Color {
         guard pad.isAssigned else { return theme.surface }
-        return pad.color.color(scheme).opacity(isPlaying ? 0.45 : 0.28)
+        return pad.color.color(scheme).opacity(pad.isFlashing ? 0.45 : 0.28)
     }
 
     private var padBorder: Color {
         guard pad.isAssigned else { return theme.line }
-        return pad.color.color(scheme).opacity(isPlaying ? 1 : 0.55)
+        return pad.color.color(scheme).opacity(pad.isFlashing ? 1 : 0.55)
     }
 
     @ViewBuilder
     private var menu: some View {
         Button("Cor do pad…") { pickingColor = true }
+
+        Menu("Ao bater de novo") {
+            Button {
+                onVoicing(.poly)
+            } label: {
+                Label("Sobrepor", systemImage: pad.voicing == .poly ? "checkmark" : "square.stack")
+            }
+            Button {
+                onVoicing(.mono)
+            } label: {
+                Label("Reiniciar", systemImage: pad.voicing == .mono ? "checkmark" : "arrow.counterclockwise")
+            }
+        }
 
         Menu("Instrumentos nativos") {
             ForEach(kits) { kit in

@@ -109,8 +109,41 @@ struct AudioEngineTests {
         let pad = try #require(drums.pads.first)
         pad.volume = 0.5
         drums.master = 0.5
-        pad.velocity = 0.5
-        pad.applyGain()
-        #expect(abs(pad.player.volume - 0.125) < 0.0001)
+        let voice = pad.claimVoice(velocity: 0.5)
+        #expect(abs(voice.volume - 0.125) < 0.0001)
+    }
+}
+
+@MainActor
+@Suite("Audio session reporting")
+struct AudioSessionReportingTests {
+
+    private func model() -> AppModel {
+        let id = UUID().uuidString
+        return AppModel(defaults: UserDefaults(suiteName: "vigil.tests.\(id)")!,
+                        samplesDirectory: FileManager.default.temporaryDirectory
+                            .appendingPathComponent("vigil-tests/\(id)", isDirectory: true))
+    }
+
+    @Test("A refused audio session reaches the user instead of a log")
+    func failureSurfaces() {
+        let app = model()
+        app.reportAudioSetup(AudioSessionError.sessionUnavailable)
+
+        let toast = app.toasts.current
+        #expect(toast?.kind == .error)
+        #expect(toast?.message == app.t(AudioSessionError.sessionUnavailable.messageKey))
+    }
+
+    @Test("Nothing is said when the session configured cleanly")
+    func silenceWhenFine() {
+        let app = model()
+        app.reportAudioSetup(nil)
+        #expect(app.toasts.current == nil)
+    }
+
+    @Test("A graph on this platform reports no setup failure")
+    func macOSGraphIsClean() {
+        #expect(AudioGraph().setupFailure == nil)
     }
 }

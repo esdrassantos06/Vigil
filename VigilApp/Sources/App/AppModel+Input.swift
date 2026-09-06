@@ -95,6 +95,11 @@ extension AppModel {
         scheduleAutosave()
     }
 
+    func setVoicing(_ pad: DrumPad, to voicing: PadVoicing) {
+        pad.voicing = voicing
+        savePads()
+    }
+
     func setVolume(_ pad: DrumPad, to value: Double) {
         pad.volume = value
         scheduleAutosave()

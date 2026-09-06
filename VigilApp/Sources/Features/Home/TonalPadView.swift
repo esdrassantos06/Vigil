@@ -75,11 +75,7 @@ struct TransportPanel: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: Metrics.padRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Metrics.padRadius)
-                .stroke(theme.line, lineWidth: 1)
-        )
+        .card(theme.surface)
     }
 }
 
@@ -108,11 +104,7 @@ struct StepperSelector: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: Metrics.controlRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Metrics.controlRadius)
-                .stroke(theme.line, lineWidth: 1)
-        )
+        .card(theme.surface, radius: Metrics.controlRadius)
     }
 
     private func arrow(_ symbol: String, action: @escaping () -> Void) -> some View {

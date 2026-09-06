@@ -3857,6 +3857,151 @@
           }
         }
       }
+    },
+    "Ao bater de novo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When hit again"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al golpear de nuevo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand frappé à nouveau"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ao bater de novo"
+          }
+        }
+      }
+    },
+    "Sobrepor": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overlap"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Superponer"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Superposer"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sobrepor"
+          }
+        }
+      }
+    },
+    "Reiniciar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiniciar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redémarrer"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiniciar"
+          }
+        }
+      }
+    },
+    "Não foi possível preparar a saída de áudio. Pode não sair som.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The audio output could not be prepared. There may be no sound."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo preparar la salida de audio. Puede que no haya sonido."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La sortie audio n'a pas pu être préparée. Il se peut qu'il n'y ait aucun son."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível preparar a saída de áudio. Pode não sair som."
+          }
+        }
+      }
+    },
+    "Não foi possível apagar %@. O arquivo continua no disco.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ could not be deleted. The file is still on disk."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo borrar %@. El archivo sigue en el disco."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n'a pas pu être supprimé. Le fichier est toujours sur le disque."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível apagar %@. O arquivo continua no disco."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

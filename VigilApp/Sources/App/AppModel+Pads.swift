@@ -65,10 +65,15 @@ extension AppModel {
     }
 
     func delete(_ sample: Sample) {
+        do {
+            try library.delete(sample)
+        } catch {
+            toasts.error(message(for: error))
+            return
+        }
         for pad in drums.pads where pad.source == .custom(sample.id) {
             drums.clear(pad)
         }
-        library.delete(sample)
         savePads()
         toasts.info(t("\(sample.displayName) removido."))
     }

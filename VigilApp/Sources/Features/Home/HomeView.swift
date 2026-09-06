@@ -7,11 +7,6 @@ struct HomeView: View {
 
     private var isSheetOpen: Bool { model.activeSheet != nil }
 
-    private let drumColumns = Array(
-        repeating: GridItem(.flexible(), spacing: Metrics.padGap),
-        count: 4
-    )
-
     var body: some View {
         let theme = model.theme.resolve(scheme)
 
@@ -46,104 +41,10 @@ struct HomeView: View {
         .task { model.start() }
         .preferredColorScheme(model.theme.colorScheme)
         .sheet(item: $model.activeSheet) { sheet in
-            switch sheet {
-            case .saveKit:
-                NamePrompt(
-                    title: "Salvar kit",
-                    placeholder: "Ex.: Meu Kit",
-                    onCancel: { model.activeSheet = nil },
-                    onConfirm: { name in
-                        model.saveCurrentKit(named: name)
-                        model.activeSheet = nil
-                    }
-                )
+            sheetContent(sheet)
                 .environment(\.theme, theme)
                 .environment(\.locale, model.language.locale)
                 .toasts(model.toasts)
-            case .saveSet:
-                NamePrompt(
-                    title: "Salvar Set",
-                    placeholder: "Ex.: Meu Set",
-                    onCancel: { model.activeSheet = nil },
-                    onConfirm: { name in
-                        model.saveCurrentSet(named: name)
-                        model.activeSheet = nil
-                    }
-                )
-                .environment(\.theme, theme)
-                .environment(\.locale, model.language.locale)
-                .toasts(model.toasts)
-            case .manageSets:
-                ManageList(
-                    title: "Gerenciar Sets",
-                    items: model.sets.sets.map {
-                        ManageItem(id: $0.id, name: $0.name, detail: $0.padSoundID)
-                    },
-                    emptyTitle: "Nenhum set salvo",
-                    emptyMessage: "Um set guarda o som do pad, o kit e os volumes. Salve o atual para voltar a ele depois.",
-                    onRename: { item, name in
-                        if let set = model.sets.sets.first(where: { $0.id == item.id }) {
-                            model.renameSet(set, to: name)
-                        }
-                    },
-                    onDelete: { item in
-                        if let set = model.sets.sets.first(where: { $0.id == item.id }) {
-                            model.deleteSet(set)
-                        }
-                    },
-                    onSelect: { item in
-                        if let set = model.sets.sets.first(where: { $0.id == item.id }) {
-                            model.loadSet(set)
-                        }
-                    },
-                    onClose: { model.activeSheet = nil }
-                )
-                .environment(\.theme, theme)
-                .environment(\.locale, model.language.locale)
-                .toasts(model.toasts)
-            case .manageSamples:
-                ManageList(
-                    title: "Gerenciar Samples",
-                    items: model.library.samples.map {
-                        ManageItem(id: $0.id, name: $0.displayName, detail: $0.fileName)
-                    },
-                    emptyTitle: "Nenhum sample importado",
-                    emptyMessage: "Importe um áudio e ele fica disponível para qualquer pad.",
-                    onRename: { item, name in
-                        if let sample = model.library.samples.first(where: { $0.id == item.id }) {
-                            model.renameSample(sample, to: name)
-                        }
-                    },
-                    onDelete: { item in
-                        if let sample = model.library.samples.first(where: { $0.id == item.id }) {
-                            model.delete(sample)
-                        }
-                    },
-                    onSelect: nil,
-                    onClose: { model.activeSheet = nil }
-                )
-                .environment(\.theme, theme)
-                .environment(\.locale, model.language.locale)
-                .toasts(model.toasts)
-            case .midi:
-                MidiView(model: model) { model.activeSheet = nil }
-                    .environment(\.theme, theme)
-                .environment(\.locale, model.language.locale)
-                .toasts(model.toasts)
-            case .settings:
-                SettingsView(
-                    model: model,
-                    onClose: { model.activeSheet = nil },
-                    // A nested sheet would duplicate the toast layer.
-                    onOpenMidi: {
-                        model.activeSheet = nil
-                        model.activeSheet = .midi
-                    }
-                )
-                    .environment(\.theme, theme)
-                .environment(\.locale, model.language.locale)
-                .toasts(model.toasts)
-            }
         }
         // .onKeyPress only fires along the focus path, so the root has to be focusable.
         .focusable()
@@ -155,6 +56,90 @@ struct HomeView: View {
             guard !isSheetOpen, press.modifiers.isEmpty,
                   let character = press.characters.first else { return .ignored }
             return model.handleKey(character) ? .handled : .ignored
+        }
+    }
+
+    @ViewBuilder
+    private func sheetContent(_ sheet: AppSheet) -> some View {
+        switch sheet {
+        case .saveKit:
+            NamePrompt(
+                title: "Salvar kit",
+                placeholder: "Ex.: Meu Kit",
+                onCancel: { model.activeSheet = nil },
+                onConfirm: { name in
+                    model.saveCurrentKit(named: name)
+                    model.activeSheet = nil
+                }
+            )
+        case .saveSet:
+            NamePrompt(
+                title: "Salvar Set",
+                placeholder: "Ex.: Meu Set",
+                onCancel: { model.activeSheet = nil },
+                onConfirm: { name in
+                    model.saveCurrentSet(named: name)
+                    model.activeSheet = nil
+                }
+            )
+        case .manageSets:
+            ManageList(
+                title: "Gerenciar Sets",
+                items: model.sets.sets.map {
+                    ManageItem(id: $0.id, name: $0.name, detail: $0.padSoundID)
+                },
+                emptyTitle: "Nenhum set salvo",
+                emptyMessage: "Um set guarda o som do pad, o kit e os volumes. Salve o atual para voltar a ele depois.",
+                onRename: { item, name in
+                    if let set = model.sets.sets.first(where: { $0.id == item.id }) {
+                        model.renameSet(set, to: name)
+                    }
+                },
+                onDelete: { item in
+                    if let set = model.sets.sets.first(where: { $0.id == item.id }) {
+                        model.deleteSet(set)
+                    }
+                },
+                onSelect: { item in
+                    if let set = model.sets.sets.first(where: { $0.id == item.id }) {
+                        model.loadSet(set)
+                    }
+                },
+                onClose: { model.activeSheet = nil }
+            )
+        case .manageSamples:
+            ManageList(
+                title: "Gerenciar Samples",
+                items: model.library.samples.map {
+                    ManageItem(id: $0.id, name: $0.displayName, detail: $0.fileName)
+                },
+                emptyTitle: "Nenhum sample importado",
+                emptyMessage: "Importe um áudio e ele fica disponível para qualquer pad.",
+                onRename: { item, name in
+                    if let sample = model.library.samples.first(where: { $0.id == item.id }) {
+                        model.renameSample(sample, to: name)
+                    }
+                },
+                onDelete: { item in
+                    if let sample = model.library.samples.first(where: { $0.id == item.id }) {
+                        model.delete(sample)
+                    }
+                },
+                onSelect: nil,
+                onClose: { model.activeSheet = nil }
+            )
+        case .midi:
+            MidiView(model: model) { model.activeSheet = nil }
+        case .settings:
+            SettingsView(
+                model: model,
+                onClose: { model.activeSheet = nil },
+                // A nested sheet would duplicate the toast layer.
+                onOpenMidi: {
+                    model.activeSheet = nil
+                    model.activeSheet = .midi
+                }
+            )
         }
     }
 
@@ -272,13 +257,13 @@ struct HomeView: View {
     private func padCard(_ pad: DrumPad) -> some View {
         DrumPadView(
             pad: pad,
-            isPlaying: model.playingPadIDs.contains(pad.id),
             kits: model.catalog.kits,
             samples: model.library.samples,
             onTap: { model.trigger(pad) },
             onPickNative: { model.assign(pad, kit: $0, slotIndex: $1) },
             onPickSample: { model.assign(pad, sample: $0) },
             onColor: { model.setColor(pad, to: $0) },
+            onVoicing: { model.setVoicing(pad, to: $0) },
             onClear: { model.clear(pad) },
             onVolume: { model.setVolume(pad, to: $0) }
         )

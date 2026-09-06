@@ -71,6 +71,7 @@ extension AppModel {
             guard let slot = kit.slots[safe: index] else { continue }
             pad.color = slot.color
             pad.volume = slot.volume
+            pad.voicing = slot.voicing
             if !apply(source: slot.source, to: pad) { unreadable += 1 }
         }
         currentKit = .user(kit.id)

@@ -59,21 +59,28 @@ final class SampleLibrary {
         persist()
     }
 
-    func delete(_ sample: Sample) {
-        try? FileManager.default.removeItem(at: url(for: sample))
+    /// The file goes first. If it will not go, the entry stays, because an index that forgets
+    /// a file still on disk leaves it orphaned with no way back to it.
+    /// - Throws: `LibraryError.deleteFailed` when the file is there and cannot be removed.
+    func delete(_ sample: Sample) throws {
+        let file = url(for: sample)
+        if FileManager.default.fileExists(atPath: file.path) {
+            do {
+                try FileManager.default.removeItem(at: file)
+            } catch {
+                throw LibraryError.deleteFailed(sample.displayName)
+            }
+        }
         samples.removeAll { $0.id == sample.id }
         persist()
     }
 
     private func persist() {
-        guard let data = try? JSONEncoder().encode(samples) else { return }
-        defaults.set(data, forKey: defaultsKey)
+        defaults.store(samples, forKey: defaultsKey)
     }
 
     private func restore() {
-        guard let data = defaults.data(forKey: defaultsKey),
-              let decoded = try? JSONDecoder().decode([Sample].self, from: data)
-        else { return }
+        guard let decoded = defaults.decoded([Sample].self, forKey: defaultsKey) else { return }
         samples = decoded.filter { FileManager.default.fileExists(atPath: url(for: $0).path) }
     }
 
@@ -93,11 +100,14 @@ final class SampleLibrary {
 
 enum LibraryError: VigilError {
     case accessDenied(String)
+    case deleteFailed(String)
 
     var messageKey: String.LocalizationValue {
         switch self {
         case .accessDenied(let name):
             "Não foi possível ler \(name). Se estiver no iCloud, baixe o arquivo antes de importar."
+        case .deleteFailed(let name):
+            "Não foi possível apagar \(name). O arquivo continua no disco."
         }
     }
 }

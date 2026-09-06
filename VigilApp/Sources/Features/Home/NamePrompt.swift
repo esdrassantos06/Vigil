@@ -42,11 +42,7 @@ struct NamePrompt: View {
                 .font(.system(size: 15))
                 .foregroundStyle(theme.ink)
                 .padding(12)
-                .background(theme.surface2, in: RoundedRectangle(cornerRadius: Metrics.controlRadius))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Metrics.controlRadius)
-                        .stroke(theme.line, lineWidth: 1)
-                )
+                .card(theme.surface2, radius: Metrics.controlRadius)
                 .focused($isFocused)
                 .onSubmit { if !trimmed.isEmpty { onConfirm(trimmed) } }
 

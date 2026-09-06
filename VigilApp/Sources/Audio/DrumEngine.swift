@@ -8,6 +8,12 @@ enum PadSource: Codable, Equatable, Hashable {
     case native(kit: String, slot: Int)
 }
 
+/// How a pad answers a hit while its previous one still sounds. Named after a drum
+/// program's play mode: `poly` lets the tails stack, `mono` restarts the sound.
+enum PadVoicing: String, Codable, Sendable {
+    case poly, mono
+}
+
 /// One of the eight drum pads: playback node, preloaded buffer and visual identity.
 @MainActor
 @Observable
@@ -16,22 +22,44 @@ final class DrumPad: Identifiable {
     var name: String?
     var color: PadColor
     var source: PadSource = .empty
+    var voicing: PadVoicing = .poly
+    /// Lit for a moment after a trigger. It lives here, not on the model, so a hit
+    /// re-renders one pad rather than every view that reads the model.
+    var isFlashing = false
     var volume: Double = 1.0 {
         didSet { applyGain() }
     }
 
-    /// Drum master and the last trigger's velocity live here so gain has a single point of
-    /// calculation: moving the slider must not drop the master.
+    /// Drum master lives here so gain has a single point of calculation: moving the slider
+    /// must not drop the master.
     @ObservationIgnored var master: Double = 1.0 {
         didSet { applyGain() }
     }
-    @ObservationIgnored var velocity: Double = 1.0
 
+    /// One node per simultaneous hit: a retrigger takes the next voice, so the tail of the
+    /// previous one keeps ringing instead of being cut mid-decay. Voices are taken in order,
+    /// so a ninth hit reuses the oldest, whose tail has decayed the most.
+    @ObservationIgnored let voices = (0..<8).map { _ in AVAudioPlayerNode() }
+    @ObservationIgnored private var nextVoice = 0
+    @ObservationIgnored private var velocities = [Double](repeating: 1, count: 8)
+
+    /// Each voice keeps the velocity of the hit that started it, so an older tail is not
+    /// relevelled by a softer hit landing on top of it.
     func applyGain() {
-        player.volume = Float(volume * master * velocity)
+        for (index, voice) in voices.enumerated() {
+            voice.volume = Float(volume * master * velocities[index])
+        }
     }
 
-    @ObservationIgnored let player = AVAudioPlayerNode()
+    /// - Returns: the node the next hit should play on.
+    func claimVoice(velocity: Double) -> AVAudioPlayerNode {
+        let index = nextVoice
+        nextVoice = (nextVoice + 1) % voices.count
+        velocities[index] = velocity
+        applyGain()
+        return voices[index]
+    }
+
     @ObservationIgnored var buffer: AVAudioPCMBuffer?
 
     /// Derived from `source`, which is observed. `buffer` is `@ObservationIgnored` and would
@@ -62,22 +90,14 @@ final class DrumEngine {
         pads = (0..<8).map { DrumPad(id: $0, color: palette[$0 % palette.count]) }
         let format = graph.mixer.outputFormat(forBus: 0)
         for pad in pads {
-            graph.attach(pad.player, format: format)
+            for voice in pad.voices { graph.attach(voice, format: format) }
         }
     }
 
     func load(url: URL, into pad: DrumPad, name: String, source: PadSource) throws {
-        let file = try AVAudioFile(forReading: url)
-        let format = file.processingFormat
-        guard let buffer = AVAudioPCMBuffer(
-            pcmFormat: format,
-            frameCapacity: AVAudioFrameCount(file.length)
-        ) else {
-            throw AudioError.bufferAllocationFailed
-        }
-        try file.read(into: buffer)
+        let buffer = try AVAudioPCMBuffer.contents(of: url)
 
-        graph.reconnect(pad.player, format: format)
+        for voice in pad.voices { graph.reconnect(voice, format: buffer.format) }
         pad.buffer = buffer
         pad.name = name
         pad.source = source
@@ -86,20 +106,23 @@ final class DrumEngine {
     /// - Parameter velocity: 0 to 1 from the Note On; keys and clicks fire at 1.
     func trigger(_ pad: DrumPad, velocity: Double = 1) {
         guard let buffer = pad.buffer else { return }
-        pad.velocity = velocity
-        pad.applyGain()
-        if !pad.player.isPlaying { pad.player.play() }
-        // .interrupts clears the queue and restarts in the same instant.
-        // ponytail: one voice per pad; use a node pool if overlap is ever needed.
-        pad.player.scheduleBuffer(buffer, at: nil, options: .interrupts, completionHandler: nil)
+        let voice = pad.claimVoice(velocity: velocity)
+        if pad.voicing == .mono {
+            for other in pad.voices where other !== voice { other.stop() }
+        }
+        if !voice.isPlaying { voice.play() }
+        // .interrupts clears that voice's queue and restarts in the same instant.
+        voice.scheduleBuffer(buffer, at: nil, options: .interrupts, completionHandler: nil)
     }
 
     func stopAll() {
-        for pad in pads { pad.player.stop() }
+        for pad in pads {
+            for voice in pad.voices { voice.stop() }
+        }
     }
 
     func clear(_ pad: DrumPad) {
-        pad.player.stop()
+        for voice in pad.voices { voice.stop() }
         pad.buffer = nil
         pad.name = nil
         pad.source = .empty
@@ -110,7 +133,21 @@ final class DrumEngine {
     }
 
     private func applyPan() {
-        for pad in pads { pad.player.pan = Float(pan) }
+        for pad in pads {
+            for voice in pad.voices { voice.pan = Float(pan) }
+        }
+    }
+}
+
+/// The output could not be prepared. On iOS this is the difference between playing and
+/// opening silent, so it is an error the user sees.
+enum AudioSessionError: VigilError {
+    case sessionUnavailable
+
+    var messageKey: String.LocalizationValue {
+        switch self {
+        case .sessionUnavailable: "Não foi possível preparar a saída de áudio. Pode não sair som."
+        }
     }
 }
 

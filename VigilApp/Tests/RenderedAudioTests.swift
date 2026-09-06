@@ -16,6 +16,7 @@ struct RenderedAudioTests {
     func metronomeSounds() async throws {
         let graph = AudioGraph()
         let metronome = MetronomeEngine(graph: graph, catalog: FactoryCatalog())
+        LiveLevel.hush(metronome)
         let capture = AudioCapture()
 
         metronome.bpm = 240
@@ -39,6 +40,7 @@ struct RenderedAudioTests {
     func metronomeStartsLateAndStillSounds() async throws {
         let graph = AudioGraph()
         let metronome = MetronomeEngine(graph: graph, catalog: FactoryCatalog())
+        LiveLevel.hush(metronome)
         let capture = AudioCapture()
 
         try graph.start()
@@ -59,6 +61,7 @@ struct RenderedAudioTests {
     func tonalPadGoesSilent() async throws {
         let graph = AudioGraph()
         let tonal = TonalPadEngine(graph: graph, catalog: FactoryCatalog())
+        LiveLevel.hush(tonal)
         try graph.start()
         tonal.crossfade = 0.2
 
@@ -83,7 +86,9 @@ struct RenderedAudioTests {
     func stopCutsDrumsOnly() async throws {
         let graph = AudioGraph()
         let drums = DrumEngine(graph: graph)
+        LiveLevel.hush(drums)
         let tonal = TonalPadEngine(graph: graph, catalog: FactoryCatalog())
+        LiveLevel.hush(tonal)
         let catalog = FactoryCatalog()
         try graph.start()
 
@@ -113,7 +118,8 @@ struct RenderedAudioTests {
     func crossfadeHasNoGap() async throws {
         let graph = AudioGraph()
         let tonal = TonalPadEngine(graph: graph, catalog: FactoryCatalog())
-        tonal.master = 1
+        LiveLevel.hush(tonal)
+        tonal.master = LiveLevel.quiet
         tonal.crossfade = 0.5
         try graph.start()
 

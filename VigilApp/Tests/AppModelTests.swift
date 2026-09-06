@@ -148,6 +148,20 @@ struct AppModelTests {
         #expect(!app.isKitModified)
     }
 
+    @Test("A pad's play mode survives a restart")
+    func voicingSurvivesRestart() {
+        let box = sandbox()
+        let app = model(box)
+        app.start()
+        app.setVoicing(app.drums.pads[0], to: .mono)
+        app.flushPendingWrites()
+
+        let next = model(box)
+        next.start()
+        #expect(next.drums.pads[0].voicing == .mono)
+        #expect(next.drums.pads[1].voicing == .poly)
+    }
+
     @Test("A mapped MIDI note fires its pad, and other channels are ignored")
     func midiNoteFiresPad() {
         let box = sandbox()
@@ -156,11 +170,11 @@ struct AppModelTests {
         app.midiConfig.set(.note(60), for: .drum(0))
 
         app.midi.onEvent?(.note(channel: 1, number: 60, velocity: 100))
-        #expect(app.playingPadIDs.contains(0))
+        #expect(app.drums.pads[0].isFlashing)
 
-        app.playingPadIDs.removeAll()
+        app.drums.pads[0].isFlashing = false
         app.midi.onEvent?(.note(channel: 2, number: 60, velocity: 100))
-        #expect(app.playingPadIDs.isEmpty)
+        #expect(app.drums.pads.allSatisfy { !$0.isFlashing })
     }
 
     @Test("A mapped CC drives its target across the whole range")

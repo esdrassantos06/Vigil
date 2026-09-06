@@ -13,6 +13,10 @@ final class AudioGraph {
 
     var mixer: AVAudioMixerNode { engine.mainMixerNode }
 
+    /// Set when the audio session refused to configure. The app would open silent, so this
+    /// has to reach the user rather than sit in a log.
+    private(set) var setupFailure: (any VigilError)?
+
     /// - Parameter preparesImmediately: false leaves the engine uninitialized, which is what
     ///   `enableManualRenderingMode` needs. It refuses to run on a prepared engine.
     init(preparesImmediately: Bool = true) {
@@ -39,10 +43,20 @@ final class AudioGraph {
     private func configureLowLatencyIO() {
         #if os(iOS)
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .default)
+        do {
+            try session.setCategory(.playback, mode: .default)
+        } catch {
+            setupFailure = AudioSessionError.sessionUnavailable
+        }
+        // Preferred values are hints. The system may keep its own and still play, so a
+        // refusal here costs latency, not sound, and stays quiet.
         try? session.setPreferredSampleRate(sampleRate)
         try? session.setPreferredIOBufferDuration(Double(preferredFrames) / sampleRate)
-        try? session.setActive(true)
+        do {
+            try session.setActive(true)
+        } catch {
+            setupFailure = AudioSessionError.sessionUnavailable
+        }
         #elseif os(macOS)
         setOutputBufferFrameSize(preferredFrames)
         #endif

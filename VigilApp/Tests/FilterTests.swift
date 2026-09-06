@@ -96,3 +96,23 @@ struct FilterTests {
                 "master did not lower the level: \(quietLevel) against \(loudLevel)")
     }
 }
+
+@Suite("Crossfade steps")
+struct CrossfadeStepTests {
+    @Test("The shortest fade never jumps more than 5% of full scale in one step")
+    func shortestFadeIsSmooth() {
+        let seconds = Settings.crossfadeRange.lowerBound
+        let count = CrossfadeCurve.steps(forFadeOf: seconds)
+        let (rise, fall) = CrossfadeCurve.ramps(count: count)
+
+        let jumps = zip(rise.dropFirst(), rise).map { abs($0 - $1) }
+            + zip(fall.dropFirst(), fall).map { abs($0 - $1) }
+        let worst = jumps.max() ?? 0
+        #expect(worst < 0.05, "one step moves the gain by \(worst)")
+    }
+
+    @Test("A fade still takes at least one step")
+    func neverZeroSteps() {
+        #expect(CrossfadeCurve.steps(forFadeOf: 0) == 1)
+    }
+}

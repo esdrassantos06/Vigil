@@ -14,11 +14,7 @@ struct StopButton: View {
                 .fill(isPressed ? PadColor.coral.color(scheme) : theme.inkMuted)
                 .frame(width: 14, height: 14)
                 .frame(width: Metrics.minTarget, height: Metrics.minTarget)
-                .background(theme.surface, in: RoundedRectangle(cornerRadius: Metrics.controlRadius))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Metrics.controlRadius)
-                        .stroke(theme.line, lineWidth: 1)
-                )
+                .card(theme.surface, radius: Metrics.controlRadius)
         }
         .buttonStyle(.plain)
         .onLongPressGesture(minimumDuration: 0, pressing: { isPressed = $0 }, perform: {})
