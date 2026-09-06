@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct HomeView: View {
     @Environment(\.colorScheme) private var scheme
-    @State private var model = AppModel()
+    @Bindable var model: AppModel
     @State private var importing = false
     @State private var showingSettings = false
     @State private var savingKit = false
@@ -312,9 +312,9 @@ struct HomeView: View {
 }
 
 #Preview("Home — dark") {
-    HomeView().frame(width: 1180, height: 820)
+    HomeView(model: AppModel()).frame(width: 1180, height: 820)
 }
 
 #Preview("Home — light") {
-    HomeView().frame(width: 1180, height: 820).environment(\.colorScheme, .light)
+    HomeView(model: AppModel()).frame(width: 1180, height: 820).environment(\.colorScheme, .light)
 }

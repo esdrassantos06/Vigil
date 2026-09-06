@@ -3480,6 +3480,35 @@
           }
         }
       }
+    },
+    "%lld pad(s) sem som: o arquivo não pôde ser lido.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld pad(s) with no sound: the file could not be read."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld pad(s) sin sonido: no se pudo leer el archivo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld pad(s) sans son : fichier illisible."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld pad(s) sem som: o arquivo não pôde ser lido."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

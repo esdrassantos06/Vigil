@@ -67,15 +67,17 @@ extension AppModel {
     }
 
     func selectUserKit(_ kit: UserKit) {
+        var unreadable = 0
         for (index, pad) in drums.pads.enumerated() {
             guard let slot = kit.slots[safe: index] else { continue }
             pad.color = slot.color
             pad.volume = slot.volume
-            apply(source: slot.source, to: pad)
+            if !apply(source: slot.source, to: pad) { unreadable += 1 }
         }
         currentKit = .user(kit.id)
         savePads()
         toasts.success(t("Kit \(kit.name) carregado."))
+        reportUnreadable(unreadable)
     }
 
     func deleteUserKit(_ kit: UserKit) {
@@ -106,21 +108,24 @@ extension AppModel {
         }
     }
 
-    func apply(source: PadSource, to pad: DrumPad) {
+    /// - Returns: false when the pad could not be filled.
+    @discardableResult
+    func apply(source: PadSource, to pad: DrumPad) -> Bool {
         switch source {
         case .empty:
             drums.clear(pad)
+            return true
         case .custom(let sampleID):
             guard let sample = library.samples.first(where: { $0.id == sampleID }) else {
-                drums.clear(pad); return
+                drums.clear(pad); return false
             }
-            try? drums.load(url: library.url(for: sample), into: pad,
-                            name: sample.displayName, source: source)
+            return load(library.url(for: sample), into: pad,
+                        name: sample.displayName, source: source)
         case .native(let kitID, let slotIndex):
             guard let kit = catalog.kit(id: kitID),
                   let slot = kit.slots[safe: slotIndex],
-                  let url = catalog.url(for: slot.file) else { drums.clear(pad); return }
-            try? drums.load(url: url, into: pad, name: slot.name, source: source)
+                  let url = catalog.url(for: slot.file) else { drums.clear(pad); return false }
+            return load(url, into: pad, name: slot.name, source: source)
         }
     }
 

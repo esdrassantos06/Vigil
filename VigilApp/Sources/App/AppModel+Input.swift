@@ -39,7 +39,7 @@ extension AppModel {
 
     func perform(_ target: MidiTarget, value: Double?, velocity: Double = 1) {
         // A CC below halfway does not fire, so releasing a button will not trigger twice.
-        let fired = value == nil || value! >= 0.5
+        let fired = value.map { $0 >= 0.5 } ?? true
         switch target {
         case .tonal(let note): if fired { toggleNote(note) }
         case .drum(let index):

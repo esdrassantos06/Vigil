@@ -14,30 +14,33 @@ final class SampleLibrary {
 
     @ObservationIgnored private let defaultsKey = "userSamples"
     @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored let directory: URL
 
-    init(defaults: UserDefaults = .standard) {
+    /// - Parameter defaults: injected so tests never touch the real preferences.
+    /// - Parameter directory: injected so tests never write into Application Support.
+    init(defaults: UserDefaults = .standard, directory: URL = SampleLibrary.defaultDirectory) {
         self.defaults = defaults
+        self.directory = directory
         restore()
     }
 
-    static var directory: URL {
+    static var defaultDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("Samples", isDirectory: true)
     }
 
     func url(for sample: Sample) -> URL {
-        Self.directory.appendingPathComponent(sample.fileName)
+        directory.appendingPathComponent(sample.fileName)
     }
 
-    /// Copies while the security scope is open, which is why a read-only entitlement is enough.
     @discardableResult
     func importFile(from source: URL) throws -> Sample {
         let scoped = source.startAccessingSecurityScopedResource()
         defer { if scoped { source.stopAccessingSecurityScopedResource() } }
         guard scoped || source.isFileURL else { throw LibraryError.accessDenied(source.lastPathComponent) }
 
-        try FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)
-        let destination = Self.uniqueURL(for: source.lastPathComponent)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let destination = uniqueURL(for: source.lastPathComponent)
         try FileManager.default.copyItem(at: source, to: destination)
 
         let sample = Sample(
@@ -74,7 +77,7 @@ final class SampleLibrary {
         samples = decoded.filter { FileManager.default.fileExists(atPath: url(for: $0).path) }
     }
 
-    private static func uniqueURL(for name: String) -> URL {
+    private func uniqueURL(for name: String) -> URL {
         var candidate = directory.appendingPathComponent(name)
         let base = (name as NSString).deletingPathExtension
         let ext = (name as NSString).pathExtension

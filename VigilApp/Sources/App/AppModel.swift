@@ -127,9 +127,11 @@ final class AppModel {
     @ObservationIgnored let defaultKitID = "DrumKit1"
 
     /// - Parameter defaults: injected so tests never touch the real preferences.
-    init(defaults: UserDefaults = .standard) {
+    /// - Parameter samplesDirectory: injected so tests never write into Application Support.
+    init(defaults: UserDefaults = .standard,
+         samplesDirectory: URL = SampleLibrary.defaultDirectory) {
         self.defaults = defaults
-        library = SampleLibrary(defaults: defaults)
+        library = SampleLibrary(defaults: defaults, directory: samplesDirectory)
         userKits = KitStore(defaults: defaults)
         sets = SetStore(defaults: defaults)
         midiConfig = MidiConfig(defaults: defaults)
@@ -144,14 +146,41 @@ final class AppModel {
 
     func toggleNote(_ note: Note) { tonal.toggle(note) }
 
+    /// A load that fails quietly is the bug class this project keeps hitting, so failures are
+    /// counted and surfaced instead of dropped on the floor.
+    /// - Returns: false when the file could not be read.
+    func load(_ url: URL, into pad: DrumPad, name: String, source: PadSource) -> Bool {
+        do {
+            try drums.load(url: url, into: pad, name: name, source: source)
+            return true
+        } catch {
+            drums.clear(pad)
+            return false
+        }
+    }
+
+    /// One toast for the whole batch, so loading a broken kit does not fire eight of them.
+    func reportUnreadable(_ count: Int) {
+        guard count > 0 else { return }
+        toasts.error(t("\(count) pad(s) sem som: o arquivo não pôde ser lido."))
+    }
+
     func selectKit(_ kit: FactoryKit) {
+        let palette = PadColor.allCases
+        var unreadable = 0
         for (index, pad) in drums.pads.enumerated() {
             guard let slot = kit.slots[safe: index], let url = catalog.url(for: slot.file) else { continue }
-            try? drums.load(url: url, into: pad, name: slot.name, source: .native(kit: kit.id, slot: index))
+            // Colour and volume come back too: a kit is the whole pad state, not just the sound.
+            pad.color = palette[index % palette.count]
+            pad.volume = 1
+            if !load(url, into: pad, name: slot.name, source: .native(kit: kit.id, slot: index)) {
+                unreadable += 1
+            }
         }
         currentKit = .factory(kit.id)
         savePads()
         toasts.success(t("Kit \(kit.name) carregado."))
+        reportUnreadable(unreadable)
     }
 
     func stepKit(_ delta: Int) {
@@ -201,7 +230,7 @@ final class AppModel {
         guard let kit = catalog.kit(id: defaultKitID) ?? catalog.kits.first else { return }
         for (index, pad) in drums.pads.enumerated() {
             guard let slot = kit.slots[safe: index], let url = catalog.url(for: slot.file) else { continue }
-            try? drums.load(url: url, into: pad, name: slot.name, source: .native(kit: kit.id, slot: index))
+            _ = load(url, into: pad, name: slot.name, source: .native(kit: kit.id, slot: index))
         }
         currentKit = .factory(kit.id)
         savePads()

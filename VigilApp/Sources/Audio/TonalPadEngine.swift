@@ -23,6 +23,15 @@ enum Note: String, CaseIterable, Codable, Sendable {
     }
 }
 
+/// Equal-power crossfade: the two gains keep constant energy, so the transition has no dip
+/// in the middle the way a linear fade does.
+enum CrossfadeCurve {
+    static func gains(at progress: Double) -> (rise: Float, fall: Float) {
+        let clamped = min(1, max(0, progress))
+        return (Float(sin(clamped * .pi / 2)), Float(cos(clamped * .pi / 2)))
+    }
+}
+
 /// One sustained note at a time, looped, crossfading on change. Every note is its own
 /// file, so there is no pitch shifting.
 @MainActor
@@ -141,8 +150,7 @@ final class TonalPadEngine {
             for step in 1...steps {
                 guard !Task.isCancelled else { return }
                 let progress = Double(step) / Double(steps)
-                let rise = Float(sin(progress * .pi / 2))
-                let fall = Float(cos(progress * .pi / 2))
+                let (rise, fall) = CrossfadeCurve.gains(at: progress)
 
                 incoming?.volume = max(startIncoming, rise)
                 for (node, start) in zip(fading, startVolumes) {

@@ -12,6 +12,17 @@ extension AppModel {
 
     func savePads() { scheduleAutosave() }
 
+    /// Writes anything still waiting on the debounce. Quitting within 300ms of a change
+    /// would otherwise lose it.
+    func flushPendingWrites() {
+        commitAutosave()
+        settingsSaveTask?.cancel()
+        settingsSaveTask = nil
+        if let data = try? JSONEncoder().encode(settings) {
+            defaults.set(data, forKey: settingsKey)
+        }
+    }
+
     func scheduleAutosave() {
         guard !isLoading else { return }
         autosaveTask?.cancel()
@@ -80,12 +91,10 @@ extension AppModel {
                     missing += 1
                     continue
                 }
-                try? drums.load(
-                    url: library.url(for: sample),
-                    into: pad,
-                    name: sample.displayName,
-                    source: saved.source
-                )
+                if !load(library.url(for: sample), into: pad,
+                         name: sample.displayName, source: saved.source) {
+                    missing += 1
+                }
             case .native(let kitID, let slotIndex):
                 guard let kit = catalog.kit(id: kitID),
                       let slot = kit.slots[safe: slotIndex],
@@ -93,7 +102,7 @@ extension AppModel {
                     missing += 1
                     continue
                 }
-                try? drums.load(url: url, into: pad, name: slot.name, source: saved.source)
+                if !load(url, into: pad, name: slot.name, source: saved.source) { missing += 1 }
             }
         }
 
