@@ -86,3 +86,74 @@ struct OfflineMetronomeTests {
         for interval in intervals { #expect(abs(interval - 250) < 2) }
     }
 }
+
+/// Which buffer landed on which beat, read off the rendered signal.
+///
+/// Loudness is the wrong metric: the accent is a different timbre, not a louder one, and its
+/// peak measures the same. So the clicks are compared by shape instead.
+@MainActor
+@Suite("Metronome accent", .serialized)
+struct OfflineAccentTests {
+
+    /// One short window of samples per click.
+    private func clickShapes(accentFirst: Bool) throws -> [[Float]] {
+        let graph = AudioGraph(preparesImmediately: false)
+        let metronome = MetronomeEngine(graph: graph, catalog: FactoryCatalog())
+        metronome.autoSchedules = false
+        metronome.bpm = 240
+        metronome.timeSignature = .fourFour
+        metronome.accentFirst = accentFirst
+
+        let captured = try OfflineRender.capture(
+            graph, seconds: 4,
+            prepare: { metronome.start() },
+            pump: { metronome.scheduleAhead() }
+        )
+
+        let window = Int(0.03 * captured.sampleRate)
+        return OfflineRender.onsets(in: captured.samples, rate: captured.sampleRate)
+            .compactMap { start in
+                guard start + window <= captured.samples.count else { return nil }
+                return Array(captured.samples[start..<(start + window)])
+            }
+    }
+
+    /// Mean absolute difference, so two renders of the same buffer score near zero.
+    private func distance(_ a: [Float], _ b: [Float]) -> Float {
+        let count = min(a.count, b.count)
+        guard count > 0 else { return 0 }
+        var total: Float = 0
+        for index in 0..<count { total += abs(a[index] - b[index]) }
+        return total / Float(count)
+    }
+
+    @Test("With the accent off, every click is the same waveform")
+    func unaccentedClicksMatch() throws {
+        let shapes = try clickShapes(accentFirst: false)
+        #expect(shapes.count >= 8, "expected several clicks, got \(shapes.count)")
+
+        let reference = try #require(shapes.first)
+        for shape in shapes.dropFirst() {
+            #expect(distance(shape, reference) < 0.001, "clicks differ with the accent off")
+        }
+    }
+
+    @Test("With the accent on, one click in four is a different waveform")
+    func accentedBarHasOneOddClick() throws {
+        let shapes = try clickShapes(accentFirst: true)
+        #expect(shapes.count >= 8, "expected several clicks, got \(shapes.count)")
+
+        // The plain click is whatever most beats look like, so take the shape closest to
+        // its neighbours as the reference.
+        let reference = try #require(shapes.min { left, right in
+            let leftScore = shapes.map { distance($0, left) }.reduce(0, +)
+            let rightScore = shapes.map { distance($0, right) }.reduce(0, +)
+            return leftScore < rightScore
+        })
+
+        let odd = shapes.filter { distance($0, reference) > 0.001 }.count
+        let bars = shapes.count / 4
+        #expect(odd > 0, "no accented click found; the accent buffer never played")
+        #expect(abs(odd - bars) <= 1, "\(odd) accented clicks across \(shapes.count) beats")
+    }
+}
