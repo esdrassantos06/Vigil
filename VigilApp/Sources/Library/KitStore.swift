@@ -62,14 +62,11 @@ final class KitStore {
     }
 
     private func persist() {
-        guard let data = try? JSONEncoder().encode(kits) else { return }
-        defaults.set(data, forKey: key)
+        defaults.store(kits, forKey: key)
     }
 
     private func restore() {
-        guard let data = defaults.data(forKey: key),
-              let decoded = try? JSONDecoder().decode([UserKit].self, from: data)
-        else { return }
+        guard let decoded = defaults.decoded([UserKit].self, forKey: key) else { return }
         kits = decoded
     }
 }

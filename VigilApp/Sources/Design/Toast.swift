@@ -93,11 +93,7 @@ struct ToastLayer: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
         .frame(maxWidth: 380, alignment: .leading)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: Metrics.padRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Metrics.padRadius)
-                .stroke(theme.line, lineWidth: 1)
-        )
+        .card(theme.surface)
         .shadow(color: .black.opacity(0.28), radius: 8, y: 2)
     }
 

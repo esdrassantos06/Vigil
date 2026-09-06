@@ -42,13 +42,6 @@ enum MidiTarget: Hashable, Sendable {
         }
     }
 
-    var isContinuous: Bool {
-        switch self {
-        case .padMaster, .cutoff, .highpass, .drumMaster, .drumVolume, .metronomeVolume: true
-        default: false
-        }
-    }
-
     /// Default computer keys. Live and metronome targets have none.
     var defaultKey: String? {
         switch self {
@@ -195,16 +188,13 @@ final class MidiConfig {
             disabledInputs: Array(disabledInputs),
             bindings: bindings
         )
-        guard let data = try? JSONEncoder().encode(stored) else { return }
-        defaults.set(data, forKey: storageKey)
+        defaults.store(stored, forKey: storageKey)
     }
 
     private func restore() {
         isRestoring = true
         defer { isRestoring = false }
-        guard let data = defaults.data(forKey: storageKey),
-              let stored = try? JSONDecoder().decode(Stored.self, from: data)
-        else { return }
+        guard let stored = defaults.decoded(Stored.self, forKey: storageKey) else { return }
         channel = stored.channel
         disabledInputs = Set(stored.disabledInputs)
         bindings = stored.bindings

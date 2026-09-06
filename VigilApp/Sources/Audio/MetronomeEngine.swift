@@ -196,12 +196,7 @@ final class MetronomeEngine {
     private func buffer(forKey key: String) -> AVAudioPCMBuffer? {
         guard let relative = catalog.clicks[key],
               let url = catalog.url(for: relative),
-              let file = try? AVAudioFile(forReading: url),
-              let source = AVAudioPCMBuffer(
-                pcmFormat: file.processingFormat,
-                frameCapacity: AVAudioFrameCount(file.length)
-              ),
-              (try? file.read(into: source)) != nil
+              let source = try? AVAudioPCMBuffer.contents(of: url)
         else { return nil }
 
         return convert(source, to: graph.mixer.outputFormat(forBus: 0))

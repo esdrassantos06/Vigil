@@ -49,14 +49,11 @@ final class SetStore {
     }
 
     private func persist() {
-        guard let data = try? JSONEncoder().encode(sets) else { return }
-        defaults.set(data, forKey: key)
+        defaults.store(sets, forKey: key)
     }
 
     private func restore() {
-        guard let data = defaults.data(forKey: key),
-              let decoded = try? JSONDecoder().decode([VigilSet].self, from: data)
-        else { return }
+        guard let decoded = defaults.decoded([VigilSet].self, forKey: key) else { return }
         sets = decoded
     }
 }

@@ -128,7 +128,6 @@ final class TonalPadEngine {
         guard let buffer = buffer(for: note) else { return }
 
         let incoming = players[1 - activeSlot]
-        let outgoing = players[activeSlot]
 
         incoming.stop()
         incoming.volume = 0

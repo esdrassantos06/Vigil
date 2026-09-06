@@ -66,14 +66,11 @@ final class SampleLibrary {
     }
 
     private func persist() {
-        guard let data = try? JSONEncoder().encode(samples) else { return }
-        defaults.set(data, forKey: defaultsKey)
+        defaults.store(samples, forKey: defaultsKey)
     }
 
     private func restore() {
-        guard let data = defaults.data(forKey: defaultsKey),
-              let decoded = try? JSONDecoder().decode([Sample].self, from: data)
-        else { return }
+        guard let decoded = defaults.decoded([Sample].self, forKey: defaultsKey) else { return }
         samples = decoded.filter { FileManager.default.fileExists(atPath: url(for: $0).path) }
     }
 

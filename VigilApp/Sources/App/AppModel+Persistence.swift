@@ -17,9 +17,7 @@ extension AppModel {
         commitAutosave()
         settingsSaveTask?.cancel()
         settingsSaveTask = nil
-        if let data = try? JSONEncoder().encode(settings) {
-            defaults.set(data, forKey: settingsKey)
-        }
+        defaults.store(settings, forKey: settingsKey)
     }
 
     func scheduleAutosave() {
@@ -142,8 +140,8 @@ extension AppModel {
         settingsSaveTask?.cancel()
         settingsSaveTask = Task { [settings, settingsKey] in
             try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled, let data = try? JSONEncoder().encode(settings) else { return }
-            defaults.set(data, forKey: settingsKey)
+            guard !Task.isCancelled else { return }
+            defaults.store(settings, forKey: settingsKey)
         }
     }
 
@@ -162,8 +160,7 @@ extension AppModel {
     }
 
     func loadSettings() {
-        if let data = defaults.data(forKey: settingsKey),
-           let decoded = try? JSONDecoder().decode(Settings.self, from: data) {
+        if let decoded = defaults.decoded(Settings.self, forKey: settingsKey) {
             settings = decoded.clamped()
         }
         applySettings()

@@ -114,6 +114,29 @@ struct Sheet<Content: View, Footer: View>: View {
     }
 }
 
+/// Filled rounded surface with the theme's hairline border: panels, toasts, controls.
+private struct Card: ViewModifier {
+    let fill: Color
+    let radius: CGFloat
+
+    @Environment(\.theme) private var theme
+
+    func body(content: Content) -> some View {
+        content
+            .background(fill, in: RoundedRectangle(cornerRadius: radius))
+            .overlay(
+                RoundedRectangle(cornerRadius: radius)
+                    .stroke(theme.line, lineWidth: 1)
+            )
+    }
+}
+
+extension View {
+    func card(_ fill: Color, radius: CGFloat = Metrics.padRadius) -> some View {
+        modifier(Card(fill: fill, radius: radius))
+    }
+}
+
 struct Panel<Content: View>: View {
     let title: LocalizedStringKey
     @ViewBuilder let content: () -> Content
@@ -132,11 +155,7 @@ struct Panel<Content: View>: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: Metrics.padRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Metrics.padRadius)
-                .stroke(theme.line, lineWidth: 1)
-        )
+        .card(theme.surface)
     }
 }
 
