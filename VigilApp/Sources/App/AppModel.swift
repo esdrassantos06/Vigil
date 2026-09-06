@@ -94,7 +94,9 @@ final class AppModel {
     }
 
     func currentSlots() -> [StoredSlot] {
-        drums.pads.map { StoredSlot(source: $0.source, color: $0.color, volume: $0.volume) }
+        drums.pads.map {
+            StoredSlot(source: $0.source, color: $0.color, volume: $0.volume, voicing: $0.voicing)
+        }
     }
 
     func referenceSlots() -> [StoredSlot]? {
@@ -114,8 +116,6 @@ final class AppModel {
             return nil
         }
     }
-
-    var playingPadIDs: Set<Int> = []
 
     @ObservationIgnored let graph = AudioGraph()
     @ObservationIgnored var releaseTasks: [Int: Task<Void, Never>] = [:]
@@ -173,6 +173,7 @@ final class AppModel {
             // Colour and volume come back too: a kit is the whole pad state, not just the sound.
             pad.color = palette[index % palette.count]
             pad.volume = 1
+            pad.voicing = .poly
             if !load(url, into: pad, name: slot.name, source: .native(kit: kit.id, slot: index)) {
                 unreadable += 1
             }

@@ -5,6 +5,23 @@ struct StoredSlot: Codable, Equatable, Sendable {
     var source: PadSource
     var color: PadColor
     var volume: Double
+    var voicing: PadVoicing
+
+    init(source: PadSource, color: PadColor, volume: Double, voicing: PadVoicing = .poly) {
+        self.source = source
+        self.color = color
+        self.volume = volume
+        self.voicing = voicing
+    }
+
+    /// Slots written before the play mode existed load as overlapping, which is what they did.
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        source = try container.decode(PadSource.self, forKey: .source)
+        color = try container.decode(PadColor.self, forKey: .color)
+        volume = try container.decode(Double.self, forKey: .volume)
+        voicing = try container.decodeIfPresent(PadVoicing.self, forKey: .voicing) ?? .poly
+    }
 }
 
 struct UserKit: Identifiable, Codable, Equatable, Sendable {

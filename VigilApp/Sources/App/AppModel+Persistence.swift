@@ -8,6 +8,25 @@ extension AppModel {
         let source: PadSource
         let color: PadColor
         let volume: Double
+        let voicing: PadVoicing
+
+        init(id: Int, source: PadSource, color: PadColor, volume: Double, voicing: PadVoicing) {
+            self.id = id
+            self.source = source
+            self.color = color
+            self.volume = volume
+            self.voicing = voicing
+        }
+
+        /// State written before the play mode existed loads as overlapping.
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(Int.self, forKey: .id)
+            source = try container.decode(PadSource.self, forKey: .source)
+            color = try container.decode(PadColor.self, forKey: .color)
+            volume = try container.decode(Double.self, forKey: .volume)
+            voicing = try container.decodeIfPresent(PadVoicing.self, forKey: .voicing) ?? .poly
+        }
     }
 
     func savePads() { scheduleAutosave() }
@@ -54,52 +73,26 @@ extension AppModel {
 
     func persistPads() {
         let state = drums.pads.map {
-            PadState(id: $0.id, source: $0.source, color: $0.color, volume: $0.volume)
+            PadState(id: $0.id, source: $0.source, color: $0.color,
+                     volume: $0.volume, voicing: $0.voicing)
         }
-        guard let data = try? JSONEncoder().encode(state) else { return }
-        defaults.set(data, forKey: padsKey)
-        if let data = try? JSONEncoder().encode(currentKit) {
-            defaults.set(data, forKey: kitKey)
-        }
+        defaults.store(state, forKey: padsKey)
+        defaults.store(currentKit, forKey: kitKey)
     }
 
     @discardableResult
     func restorePads() -> Bool {
-        guard let data = defaults.data(forKey: padsKey),
-              let state = try? JSONDecoder().decode([PadState].self, from: data)
-        else { return false }
+        guard let state = defaults.decoded([PadState].self, forKey: padsKey) else { return false }
 
-        if let data = defaults.data(forKey: kitKey) {
-            currentKit = try? JSONDecoder().decode(KitRef?.self, from: data)
-        }
+        currentKit = defaults.decoded(KitRef.self, forKey: kitKey)
 
         var missing = 0
         for saved in state {
             guard let pad = drums.pads[safe: saved.id] else { continue }
             pad.color = saved.color
             pad.volume = saved.volume
-
-            switch saved.source {
-            case .empty:
-                continue
-            case .custom(let sampleID):
-                guard let sample = library.samples.first(where: { $0.id == sampleID }) else {
-                    missing += 1
-                    continue
-                }
-                if !load(library.url(for: sample), into: pad,
-                         name: sample.displayName, source: saved.source) {
-                    missing += 1
-                }
-            case .native(let kitID, let slotIndex):
-                guard let kit = catalog.kit(id: kitID),
-                      let slot = kit.slots[safe: slotIndex],
-                      let url = catalog.url(for: slot.file) else {
-                    missing += 1
-                    continue
-                }
-                if !load(url, into: pad, name: slot.name, source: saved.source) { missing += 1 }
-            }
+            pad.voicing = saved.voicing
+            if !apply(source: saved.source, to: pad) { missing += 1 }
         }
 
         if currentKit == nil, let inferred = inferredKitID() {
@@ -177,12 +170,12 @@ extension AppModel {
     }
 
     func flash(_ pad: DrumPad) {
-        playingPadIDs.insert(pad.id)
+        pad.isFlashing = true
         releaseTasks[pad.id]?.cancel()
         releaseTasks[pad.id] = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(120))
             guard !Task.isCancelled else { return }
-            self?.playingPadIDs.remove(pad.id)
+            pad.isFlashing = false
             self?.releaseTasks[pad.id] = nil
         }
     }

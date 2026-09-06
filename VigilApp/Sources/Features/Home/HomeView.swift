@@ -257,13 +257,13 @@ struct HomeView: View {
     private func padCard(_ pad: DrumPad) -> some View {
         DrumPadView(
             pad: pad,
-            isPlaying: model.playingPadIDs.contains(pad.id),
             kits: model.catalog.kits,
             samples: model.library.samples,
             onTap: { model.trigger(pad) },
             onPickNative: { model.assign(pad, kit: $0, slotIndex: $1) },
             onPickSample: { model.assign(pad, sample: $0) },
             onColor: { model.setColor(pad, to: $0) },
+            onVoicing: { model.setVoicing(pad, to: $0) },
             onClear: { model.clear(pad) },
             onVolume: { model.setVolume(pad, to: $0) }
         )

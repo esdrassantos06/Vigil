@@ -109,8 +109,7 @@ struct AudioEngineTests {
         let pad = try #require(drums.pads.first)
         pad.volume = 0.5
         drums.master = 0.5
-        pad.velocity = 0.5
-        pad.applyGain()
-        #expect(abs(pad.player.volume - 0.125) < 0.0001)
+        let voice = pad.claimVoice(velocity: 0.5)
+        #expect(abs(voice.volume - 0.125) < 0.0001)
     }
 }
