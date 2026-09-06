@@ -204,6 +204,7 @@ final class AppModel {
         } catch {
             toasts.error(t("Não foi possível iniciar o áudio."))
         }
+        tonal.warm()
         startMidi()
 
         if !restorePads() {

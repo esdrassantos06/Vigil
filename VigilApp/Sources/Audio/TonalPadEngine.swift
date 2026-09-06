@@ -1,3 +1,4 @@
+import Accelerate
 import AVFoundation
 import Observation
 
@@ -26,6 +27,8 @@ enum Note: String, CaseIterable, Codable, Sendable {
 enum SeamlessLoop {
     static let fade: Double = 2.0
 
+    /// vDSP rather than a per-sample loop: a 40s stereo pad is about two million frames per
+    /// channel, and the scalar version blocked the main actor for ~370ms on every cold note.
     static func make(from source: AVAudioPCMBuffer, fadeSeconds: Double = fade) -> AVAudioPCMBuffer? {
         let total = Int(source.frameLength)
         let fadeFrames = min(Int(fadeSeconds * source.format.sampleRate), total / 4)
@@ -39,13 +42,14 @@ enum SeamlessLoop {
         output.frameLength = AVAudioFrameCount(length)
         guard let destination = output.floatChannelData else { return nil }
 
+        let (rise, fall) = CrossfadeCurve.ramps(count: fadeFrames)
+        let tail = length - fadeFrames
+
         for channel in 0..<Int(source.format.channelCount) {
             let from = input[channel], to = destination[channel]
-            for index in 0..<fadeFrames {
-                let (rise, fall) = CrossfadeCurve.gains(at: Double(index) / Double(fadeFrames))
-                to[index] = from[index] * rise + from[length + index] * fall
-            }
-            for index in fadeFrames..<length { to[index] = from[index] }
+            vDSP_vmul(from, 1, rise, 1, to, 1, vDSP_Length(fadeFrames))
+            vDSP_vma(from + length, 1, fall, 1, to, 1, to, 1, vDSP_Length(fadeFrames))
+            memcpy(to + fadeFrames, from + fadeFrames, tail * MemoryLayout<Float>.size)
         }
         return output
     }
@@ -57,6 +61,25 @@ enum CrossfadeCurve {
     static func gains(at progress: Double) -> (rise: Float, fall: Float) {
         let clamped = min(1, max(0, progress))
         return (Float(sin(clamped * .pi / 2)), Float(cos(clamped * .pi / 2)))
+    }
+
+    /// The same curve sampled `count` times, for the vectorised crossfade.
+    /// Steps a fade of `seconds` should take. A player node applies volume once per render
+    /// buffer (128 frames, about 3ms), so this is as fine as the API resolves; coarser steps
+    /// leave an audible jump on the shortest fade, where 60 a second means 13% of full scale.
+    static func steps(forFadeOf seconds: Double) -> Int {
+        max(1, Int(seconds * 300))
+    }
+
+    static func ramps(count: Int) -> (rise: [Float], fall: [Float]) {
+        var rise = [Float](repeating: 0, count: count)
+        var fall = [Float](repeating: 0, count: count)
+        for index in 0..<count {
+            let (up, down) = gains(at: Double(index) / Double(count))
+            rise[index] = up
+            fall[index] = down
+        }
+        return (rise, fall)
     }
 }
 
@@ -82,6 +105,7 @@ final class TonalPadEngine {
     @ObservationIgnored private let players = [AVAudioPlayerNode(), AVAudioPlayerNode()]
     @ObservationIgnored private var activeSlot = 0
     @ObservationIgnored private var fadeTask: Task<Void, Never>?
+    @ObservationIgnored private var warmTask: Task<Void, Never>?
     @ObservationIgnored private var buffers: [Note: AVAudioPCMBuffer] = [:]
 
     private var lowpass: AVAudioUnitEQFilterParameters { eq.bands[1] }
@@ -112,12 +136,46 @@ final class TonalPadEngine {
         mixer.outputVolume = Float(master)
     }
 
+    /// The held note keeps sounding on its old buffer until the new one is decoded, so
+    /// changing sound mid-note costs the main actor nothing.
     func selectSound(_ id: String) {
         soundID = id
         buffers.removeAll()
-        if let note = activeNote {
-            play(note)
+        warm(playing: activeNote)
+    }
+
+    /// Decodes the current sound's notes off the main actor so playing one never blocks the
+    /// UI. Safe to call again: cached notes are skipped and an older pass is cancelled.
+    /// - Parameter playing: decoded first and played as soon as it is ready.
+    func warm(playing first: Note? = nil) {
+        warmTask?.cancel()
+        let sound = soundID
+        let order = first.map { held in [held] + Note.allCases.filter { $0 != held } } ?? Note.allCases
+        warmTask = Task { [weak self] in
+            for note in order {
+                guard let self, !Task.isCancelled, soundID == sound else { return }
+                if buffers[note] == nil, let url = url(for: note) {
+                    await Task.yield()
+                    guard let loaded = await Self.decode(url) else { continue }
+                    guard !Task.isCancelled, soundID == sound else { return }
+                    buffers[note] = loaded.buffer
+                }
+                if note == first, activeNote == first { play(note) }
+            }
         }
+    }
+
+    /// The buffer is built inside the task and handed over untouched, so nothing else can
+    /// reach it while it crosses back to the main actor.
+    private struct Loaded: @unchecked Sendable {
+        let buffer: AVAudioPCMBuffer
+    }
+
+    private static func decode(_ url: URL) async -> Loaded? {
+        await Task.detached(priority: .background) {
+            guard let raw = try? AVAudioPCMBuffer.contents(of: url) else { return nil }
+            return Loaded(buffer: SeamlessLoop.make(from: raw) ?? raw)
+        }.value
     }
 
     func toggle(_ note: Note) {
@@ -144,16 +202,16 @@ final class TonalPadEngine {
         ramp(incoming: nil, seconds: crossfade)
     }
 
+    private func url(for note: Note) -> URL? {
+        guard let relative = catalog.padSounds[soundID]?[note.rawValue] else { return nil }
+        return catalog.url(for: relative)
+    }
+
+    /// Falls back to decoding inline when `warm()` has not reached this note yet.
     private func buffer(for note: Note) -> AVAudioPCMBuffer? {
         if let cached = buffers[note] { return cached }
-        guard let relative = catalog.padSounds[soundID]?[note.rawValue],
-              let url = catalog.url(for: relative),
-              let file = try? AVAudioFile(forReading: url),
-              let buffer = AVAudioPCMBuffer(
-                pcmFormat: file.processingFormat,
-                frameCapacity: AVAudioFrameCount(file.length)
-              ),
-              (try? file.read(into: buffer)) != nil
+        guard let url = url(for: note),
+              let buffer = try? AVAudioPCMBuffer.contents(of: url)
         else { return nil }
 
         let looped = SeamlessLoop.make(from: buffer) ?? buffer
@@ -164,14 +222,13 @@ final class TonalPadEngine {
     /// Equal-power ramp, authoritative over **every** player: anything that is not `incoming`
     /// falls to zero and is stopped at the end. A cancelled ramp leaves partial volumes, so each
     /// ramp starts from each node's current volume; without that an interrupted player loops forever.
-    /// ponytail: ~60fps steps; move to sample-accurate automation if it ever clicks.
     private func ramp(incoming: AVAudioPlayerNode?, seconds: Double) {
         fadeTask?.cancel()
 
         let fading = players.filter { $0 !== incoming }
         let startVolumes = fading.map(\.volume)
         let startIncoming = incoming?.volume ?? 0
-        let steps = max(1, Int(seconds * 60))
+        let steps = CrossfadeCurve.steps(forFadeOf: seconds)
         let stepNanos = UInt64(seconds / Double(steps) * 1_000_000_000)
 
         fadeTask = Task {
