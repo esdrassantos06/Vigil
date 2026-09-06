@@ -3973,6 +3973,35 @@
           }
         }
       }
+    },
+    "Não foi possível apagar %@. O arquivo continua no disco.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ could not be deleted. The file is still on disk."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo borrar %@. El archivo sigue en el disco."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n'a pas pu être supprimé. Le fichier est toujours sur le disque."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível apagar %@. O arquivo continua no disco."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

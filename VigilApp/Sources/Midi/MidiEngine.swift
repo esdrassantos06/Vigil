@@ -31,11 +31,37 @@ final class MidiEngine {
     @ObservationIgnored var onSourcesChanged: (([String], [String]) -> Void)?
     @ObservationIgnored var disabled: Set<String> = [] { didSet { syncConnections() } }
 
-    @ObservationIgnored private var client = MIDIClientRef()
-    @ObservationIgnored private var port = MIDIPortRef()
+    /// Plain CoreMIDI handles. `nonisolated(unsafe)` so `deinit`, which has the object to
+    /// itself, can hand them back.
+    @ObservationIgnored nonisolated(unsafe) private var client = MIDIClientRef()
+    @ObservationIgnored nonisolated(unsafe) private var port = MIDIPortRef()
     @ObservationIgnored private var connected: Set<MIDIUniqueID> = []
 
+    /// CoreMIDI hands out process-wide handles: dropping one without disposing leaks the
+    /// client and its port for the life of the process.
+    func stop() {
+        for source in sources where connected.contains(source.id) {
+            MIDIPortDisconnectSource(port, source.endpoint)
+        }
+        connected.removeAll()
+        dispose()
+    }
+
+    private nonisolated func dispose() {
+        if port != 0 {
+            MIDIPortDispose(port)
+            port = 0
+        }
+        if client != 0 {
+            MIDIClientDispose(client)
+            client = 0
+        }
+    }
+
+    deinit { dispose() }
+
     func start() throws {
+        dispose()
         var newClient = MIDIClientRef()
         let clientStatus = MIDIClientCreateWithBlock("Vigil" as CFString, &newClient) { @Sendable [weak self] notification in
             guard notification.pointee.messageID == .msgSetupChanged else { return }
