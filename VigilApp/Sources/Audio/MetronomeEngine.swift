@@ -55,7 +55,15 @@ enum ClickSound: String, CaseIterable, Codable, Sendable {
 @Observable
 final class MetronomeEngine {
     private(set) var isRunning = false
-    private(set) var beatInBar = 0
+
+    /// Which beat of the bar is sounding, from the player's own clock. Reading it off the
+    /// scheduler instead would report how far the queue was filled, which is seconds ahead.
+    var beatInBar: Int {
+        guard isRunning, let now = currentPlayerSample(), samplesPerBeat > 0 else { return 0 }
+        let elapsed = Double(now) - firstBeatSample
+        guard elapsed >= 0 else { return 0 }
+        return Int(elapsed / samplesPerBeat) % timeSignature.beatsPerBar
+    }
 
     var bpm: Double = 120 { didSet { restartIfRunning() } }
     var timeSignature: TimeSignature = .fourFour { didSet { restartIfRunning() } }
@@ -74,6 +82,7 @@ final class MetronomeEngine {
     /// Double accumulator: truncating samples per beat costs about 76ms of drift over half
     /// an hour at 128 BPM. Rounding happens only when scheduling.
     @ObservationIgnored private var nextBeatSample: Double = 0
+    @ObservationIgnored private var firstBeatSample: Double = 0
     @ObservationIgnored private var beatCounter = 0
     @ObservationIgnored private var tapTimes: [Date] = []
 
@@ -115,7 +124,6 @@ final class MetronomeEngine {
         guard !isRunning, normalBuffer != nil else { return }
         isRunning = true
         beatCounter = 0
-        beatInBar = 0
         player.play()
 
         guard let now = currentPlayerSample() else {
@@ -123,12 +131,15 @@ final class MetronomeEngine {
                 player.scheduleBuffer(first, at: nil, options: [], completionHandler: nil)
             }
             nextBeatSample = samplesPerBeat
+            firstBeatSample = 0
             beatCounter = 1
+            scheduleAhead()
             if autoSchedules { startScheduler() }
             return
         }
         nextBeatSample = Double(now) + sampleRate * 0.1
-
+        firstBeatSample = nextBeatSample
+        scheduleAhead()
         if autoSchedules { startScheduler() }
     }
 
@@ -147,7 +158,6 @@ final class MetronomeEngine {
         scheduler?.cancel()
         scheduler = nil
         player.stop()
-        beatInBar = 0
     }
 
     func tap() {
@@ -162,10 +172,12 @@ final class MetronomeEngine {
         bpm = min(300, max(20, (60.0 / average).rounded()))
     }
 
+    static let scheduleHorizon: Double = 2
+
     func scheduleAhead() {
         guard let normal = normalBuffer, let accent = accentBuffer else { return }
         let now = Double(currentPlayerSample() ?? 0)
-        let horizon = now + sampleRate * 0.3
+        let horizon = now + sampleRate * Self.scheduleHorizon
 
         while nextBeatSample < horizon {
             let isDownbeat = beatCounter % timeSignature.beatsPerBar == 0
@@ -176,7 +188,6 @@ final class MetronomeEngine {
 
             nextBeatSample += samplesPerBeat
             beatCounter += 1
-            beatInBar = beatCounter % timeSignature.beatsPerBar
         }
     }
 
