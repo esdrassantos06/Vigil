@@ -1,0 +1,264 @@
+{
+  "padSounds": {
+    "Shimmer2": {
+      "D": "PadSounds/Shimmer2/D.m4a",
+      "E": "PadSounds/Shimmer2/E.m4a",
+      "G": "PadSounds/Shimmer2/G.m4a",
+      "F": "PadSounds/Shimmer2/F.m4a",
+      "B": "PadSounds/Shimmer2/B.m4a",
+      "As": "PadSounds/Shimmer2/As.m4a",
+      "C": "PadSounds/Shimmer2/C.m4a",
+      "A": "PadSounds/Shimmer2/A.m4a",
+      "Fs": "PadSounds/Shimmer2/Fs.m4a",
+      "Gs": "PadSounds/Shimmer2/Gs.m4a",
+      "Ds": "PadSounds/Shimmer2/Ds.m4a",
+      "Cs": "PadSounds/Shimmer2/Cs.m4a"
+    },
+    "Analog": {
+      "Fs": "PadSounds/Analog/Fs.m4a",
+      "Gs": "PadSounds/Analog/Gs.m4a",
+      "C": "PadSounds/Analog/C.m4a",
+      "B": "PadSounds/Analog/B.m4a",
+      "A": "PadSounds/Analog/A.m4a",
+      "E": "PadSounds/Analog/E.m4a",
+      "D": "PadSounds/Analog/D.m4a",
+      "As": "PadSounds/Analog/As.m4a",
+      "F": "PadSounds/Analog/F.m4a",
+      "G": "PadSounds/Analog/G.m4a",
+      "Cs": "PadSounds/Analog/Cs.m4a",
+      "Ds": "PadSounds/Analog/Ds.m4a"
+    },
+    "Synth": {
+      "F": "PadSounds/Synth/F.m4a",
+      "Fs": "PadSounds/Synth/Fs.m4a",
+      "Cs": "PadSounds/Synth/Cs.m4a",
+      "G": "PadSounds/Synth/G.m4a",
+      "Ds": "PadSounds/Synth/Ds.m4a",
+      "A": "PadSounds/Synth/A.m4a",
+      "As": "PadSounds/Synth/As.m4a",
+      "D": "PadSounds/Synth/D.m4a",
+      "B": "PadSounds/Synth/B.m4a",
+      "Gs": "PadSounds/Synth/Gs.m4a",
+      "E": "PadSounds/Synth/E.m4a",
+      "C": "PadSounds/Synth/C.m4a"
+    },
+    "Abba": {
+      "Cs": "PadSounds/Abba/Cs.m4a",
+      "A": "PadSounds/Abba/A.m4a",
+      "G": "PadSounds/Abba/G.m4a",
+      "F": "PadSounds/Abba/F.m4a",
+      "Ds": "PadSounds/Abba/Ds.m4a",
+      "C": "PadSounds/Abba/C.m4a",
+      "B": "PadSounds/Abba/B.m4a",
+      "As": "PadSounds/Abba/As.m4a",
+      "Gs": "PadSounds/Abba/Gs.m4a",
+      "D": "PadSounds/Abba/D.m4a",
+      "E": "PadSounds/Abba/E.m4a",
+      "Fs": "PadSounds/Abba/Fs.m4a"
+    },
+    "Dark": {
+      "Ds": "PadSounds/Dark/Ds.m4a",
+      "C": "PadSounds/Dark/C.m4a",
+      "B": "PadSounds/Dark/B.m4a",
+      "A": "PadSounds/Dark/A.m4a",
+      "Cs": "PadSounds/Dark/Cs.m4a",
+      "E": "PadSounds/Dark/E.m4a",
+      "D": "PadSounds/Dark/D.m4a",
+      "F": "PadSounds/Dark/F.m4a",
+      "G": "PadSounds/Dark/G.m4a",
+      "As": "PadSounds/Dark/As.m4a",
+      "Fs": "PadSounds/Dark/Fs.m4a",
+      "Gs": "PadSounds/Dark/Gs.m4a"
+    },
+    "Shimmer": {
+      "As": "PadSounds/Shimmer/As.m4a",
+      "Gs": "PadSounds/Shimmer/Gs.m4a",
+      "Fs": "PadSounds/Shimmer/Fs.m4a",
+      "C": "PadSounds/Shimmer/C.m4a",
+      "B": "PadSounds/Shimmer/B.m4a",
+      "A": "PadSounds/Shimmer/A.m4a",
+      "E": "PadSounds/Shimmer/E.m4a",
+      "D": "PadSounds/Shimmer/D.m4a",
+      "F": "PadSounds/Shimmer/F.m4a",
+      "Ds": "PadSounds/Shimmer/Ds.m4a",
+      "G": "PadSounds/Shimmer/G.m4a",
+      "Cs": "PadSounds/Shimmer/Cs.m4a"
+    },
+    "Reverse": {
+      "F": "PadSounds/Reverse/F.m4a",
+      "C": "PadSounds/Reverse/C.m4a",
+      "E": "PadSounds/Reverse/E.m4a",
+      "Cs": "PadSounds/Reverse/Cs.m4a",
+      "Ds": "PadSounds/Reverse/Ds.m4a",
+      "Fs": "PadSounds/Reverse/Fs.m4a",
+      "As": "PadSounds/Reverse/As.m4a",
+      "B": "PadSounds/Reverse/B.m4a",
+      "Gs": "PadSounds/Reverse/Gs.m4a",
+      "G": "PadSounds/Reverse/G.m4a",
+      "D": "PadSounds/Reverse/D.m4a",
+      "A": "PadSounds/Reverse/A.m4a"
+    },
+    "Default": {
+      "As": "PadSounds/Default/As.m4a",
+      "Fs": "PadSounds/Default/Fs.m4a",
+      "Gs": "PadSounds/Default/Gs.m4a",
+      "Ds": "PadSounds/Default/Ds.m4a",
+      "G": "PadSounds/Default/G.m4a",
+      "F": "PadSounds/Default/F.m4a",
+      "D": "PadSounds/Default/D.m4a",
+      "E": "PadSounds/Default/E.m4a",
+      "A": "PadSounds/Default/A.m4a",
+      "Cs": "PadSounds/Default/Cs.m4a",
+      "B": "PadSounds/Default/B.m4a",
+      "C": "PadSounds/Default/C.m4a"
+    }
+  },
+  "kits": {
+    "WorshipDrums": [
+      {
+        "name": "Crash",
+        "file": "Kits/WorshipDrums/Crash.m4a"
+      },
+      {
+        "name": "Hihat",
+        "file": "Kits/WorshipDrums/Hihat.m4a"
+      },
+      {
+        "name": "Hihat Open",
+        "file": "Kits/WorshipDrums/Hihat Open.m4a"
+      },
+      {
+        "name": "Kick",
+        "file": "Kits/WorshipDrums/Kick.m4a"
+      },
+      {
+        "name": "Snare",
+        "file": "Kits/WorshipDrums/Snare.m4a"
+      },
+      {
+        "name": "Tom 1",
+        "file": "Kits/WorshipDrums/Tom 1.m4a"
+      },
+      {
+        "name": "Tom 2",
+        "file": "Kits/WorshipDrums/Tom 2.m4a"
+      },
+      {
+        "name": "Tom 3",
+        "file": "Kits/WorshipDrums/Tom 3.m4a"
+      }
+    ],
+    "DrumKit1": [
+      {
+        "name": "Clap 1",
+        "file": "Kits/DrumKit1/Clap 1.m4a"
+      },
+      {
+        "name": "Kick 1",
+        "file": "Kits/DrumKit1/Kick 1.m4a"
+      },
+      {
+        "name": "Sub Kick",
+        "file": "Kits/DrumKit1/Sub Kick.m4a"
+      },
+      {
+        "name": "Tom 1",
+        "file": "Kits/DrumKit1/Tom 1.m4a"
+      },
+      {
+        "name": "Tom 2",
+        "file": "Kits/DrumKit1/Tom 2.m4a"
+      },
+      {
+        "name": "Tom 3",
+        "file": "Kits/DrumKit1/Tom 3.m4a"
+      },
+      {
+        "name": "Tumb 1",
+        "file": "Kits/DrumKit1/Tumb 1.m4a"
+      },
+      {
+        "name": "Wood 1",
+        "file": "Kits/DrumKit1/Wood 1.m4a"
+      }
+    ],
+    "EFX1": [
+      {
+        "name": "2 White Noise",
+        "file": "Kits/EFX1/2 White Noise.m4a"
+      },
+      {
+        "name": "Boom",
+        "file": "Kits/EFX1/Boom.m4a"
+      },
+      {
+        "name": "Fx Tom",
+        "file": "Kits/EFX1/Fx Tom.m4a"
+      },
+      {
+        "name": "Swell",
+        "file": "Kits/EFX1/Swell.m4a"
+      },
+      {
+        "name": "Tumb 2",
+        "file": "Kits/EFX1/Tumb 2.m4a"
+      },
+      {
+        "name": "Tom 1",
+        "file": "Kits/EFX1/tom 1.m4a"
+      },
+      {
+        "name": "Tom 2",
+        "file": "Kits/EFX1/tom 2.m4a"
+      },
+      {
+        "name": "Tom 3",
+        "file": "Kits/EFX1/tom 3.m4a"
+      }
+    ],
+    "WorshipEFX": [
+      {
+        "name": "Blop FX",
+        "file": "Kits/WorshipEFX/Blop FX.m4a"
+      },
+      {
+        "name": "Boom FX",
+        "file": "Kits/WorshipEFX/Boom FX.m4a"
+      },
+      {
+        "name": "Noise FX",
+        "file": "Kits/WorshipEFX/Noise FX.m4a"
+      },
+      {
+        "name": "Perc FX",
+        "file": "Kits/WorshipEFX/Perc FX.m4a"
+      },
+      {
+        "name": "Sub Kick FX",
+        "file": "Kits/WorshipEFX/Sub Kick FX.m4a"
+      },
+      {
+        "name": "Swell FX",
+        "file": "Kits/WorshipEFX/Swell FX.m4a"
+      },
+      {
+        "name": "Tumb FX",
+        "file": "Kits/WorshipEFX/Tumb FX.m4a"
+      },
+      {
+        "name": "Wood FX",
+        "file": "Kits/WorshipEFX/Wood FX.m4a"
+      }
+    ]
+  },
+  "clicks": {
+    "click_logic": "Clicks/click_logic.wav",
+    "Classic": "Clicks/Classic.wav",
+    "click_logic_accent": "Clicks/click_logic_accent.wav",
+    "Classic_Accent": "Clicks/Classic_Accent.wav",
+    "Cowbell_Accent": "Clicks/Cowbell_Accent.wav",
+    "Blip": "Clicks/Blip.wav",
+    "Cowbell": "Clicks/Cowbell.wav",
+    "Blip_accent": "Clicks/Blip_accent.wav"
+  }
+}

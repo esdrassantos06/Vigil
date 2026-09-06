@@ -1,0 +1,4 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Vigil mark">
+  <path transform="translate(256 256) scale(0.52) translate(-512 -512)" fill="currentColor"
+    d="M512 250 C 430 360 400 430 400 512 C 400 612 460 690 512 742 C 564 690 624 612 624 512 C 624 430 594 360 512 250 Z"/>
+</svg>

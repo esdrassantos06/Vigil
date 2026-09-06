@@ -1,0 +1,18 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Vigil app icon">
+  <defs>
+    <linearGradient id="flame" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#FFC978"/>
+      <stop offset="1" stop-color="#E8901F"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.53" r="0.46">
+      <stop offset="0" stop-color="#F4A437" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#F4A437" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="#0A0A0A"/>
+  <circle cx="512" cy="540" r="300" fill="url(#glow)"/>
+
+  <path d="M512 250 C 430 360 400 430 400 512 C 400 612 460 690 512 742 C 564 690 624 612 624 512 C 624 430 594 360 512 250 Z" fill="url(#flame)"/>
+  <path d="M512 400 C 474 462 458 508 458 558 C 458 616 486 660 512 680 C 538 660 566 616 566 558 C 566 508 550 462 512 400 Z" fill="#0A0A0A" opacity="0.55"/>
+</svg>
