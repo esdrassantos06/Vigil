@@ -1,0 +1,60 @@
+name: Vigil
+options:
+  bundleIdPrefix: com.vigil
+  developmentLanguage: pt-BR
+  knownRegions: [pt-BR, en, es, fr, Base]
+  deploymentTarget:
+    macOS: "14.0"
+    iOS: "17.0"
+targets:
+  Vigil:
+    type: application
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - path: Sources
+      - path: Resources/Assets.xcassets
+      - path: Resources/Localizable.xcstrings
+      # Folder reference: keeps the hierarchy, since eight pad sounds each hold a C.m4a.
+      - path: Resources/Audio
+        type: folder
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Vigil
+        LSApplicationCategoryType: public.app-category.music
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+    settings:
+      base:
+        PRODUCT_NAME: Vigil
+        # iPad only: the home screen is wide and iPhone is out of scope.
+        TARGETED_DEVICE_FAMILY: "2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_VERSION: "6.0"
+        # Personal use: ad-hoc signing, no team. Swap in DEVELOPMENT_TEAM to distribute.
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
+        ENABLE_APP_SANDBOX: "NO"
+  VigilTests:
+    type: bundle.unit-test
+    supportedDestinations: [macOS]
+    sources:
+      - path: Tests
+    dependencies:
+      - target: Vigil
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
+        GENERATE_INFOPLIST_FILE: "YES"
+        # On macOS the binary lives in Contents/MacOS; the xcodegen default points at the .app root.
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Vigil.app/Contents/MacOS/Vigil"
+        BUNDLE_LOADER: "$(TEST_HOST)"
