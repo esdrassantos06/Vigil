@@ -93,4 +93,39 @@ struct DrumVoiceTests {
         let slot = try JSONDecoder().decode(StoredSlot.self, from: json)
         #expect(slot.voicing == .poly)
     }
+
+    @Test("Overlapping keeps more sound after a retrigger than restarting does")
+    func overlapKeepsMoreEnergy() async throws {
+        func energyAfterRetrigger(_ voicing: PadVoicing) async throws -> Double {
+            let graph = AudioGraph(preparesImmediately: false)
+            let drums = DrumEngine(graph: graph)
+            let catalog = FactoryCatalog()
+            let kit = try #require(catalog.kit(id: "WorshipDrums") ?? catalog.kits.first)
+            let slot = try #require(kit.slots.first { $0.name == "Kick" } ?? kit.slots.first)
+            let url = try #require(catalog.url(for: slot.file))
+            let pad = drums.pads[0]
+            try drums.load(url: url, into: pad, name: slot.name, source: .native(kit: kit.id, slot: 0))
+            pad.voicing = voicing
+
+            var blocks = 0
+            let captured = try await OfflineRender.capture(
+                graph,
+                seconds: 0.5,
+                prepare: { drums.trigger(pad) },
+                pump: {
+                    blocks += 1
+                    // 64 frames a block, so the second hit lands near 100ms, inside the tail.
+                    if blocks == 69 { drums.trigger(pad) }
+                }
+            )
+            let from = Int(0.1 * captured.sampleRate)
+            let to = min(captured.samples.count, from + Int(0.2 * captured.sampleRate))
+            return captured.samples[from..<to].reduce(0) { $0 + Double($1 * $1) }
+        }
+
+        let overlapping = try await energyAfterRetrigger(.poly)
+        let restarting = try await energyAfterRetrigger(.mono)
+        #expect(overlapping > restarting * 1.05,
+                "overlap \(overlapping) should carry the old tail over the new hit, restart \(restarting)")
+    }
 }
