@@ -23,6 +23,34 @@ enum Note: String, CaseIterable, Codable, Sendable {
     }
 }
 
+enum SeamlessLoop {
+    static let fade: Double = 2.0
+
+    static func make(from source: AVAudioPCMBuffer, fadeSeconds: Double = fade) -> AVAudioPCMBuffer? {
+        let total = Int(source.frameLength)
+        let fadeFrames = min(Int(fadeSeconds * source.format.sampleRate), total / 4)
+        guard fadeFrames > 0, total > fadeFrames * 2,
+              let input = source.floatChannelData,
+              let output = AVAudioPCMBuffer(pcmFormat: source.format,
+                                            frameCapacity: AVAudioFrameCount(total - fadeFrames))
+        else { return nil }
+
+        let length = total - fadeFrames
+        output.frameLength = AVAudioFrameCount(length)
+        guard let destination = output.floatChannelData else { return nil }
+
+        for channel in 0..<Int(source.format.channelCount) {
+            let from = input[channel], to = destination[channel]
+            for index in 0..<fadeFrames {
+                let (rise, fall) = CrossfadeCurve.gains(at: Double(index) / Double(fadeFrames))
+                to[index] = from[index] * rise + from[length + index] * fall
+            }
+            for index in fadeFrames..<length { to[index] = from[index] }
+        }
+        return output
+    }
+}
+
 /// Equal-power crossfade: the two gains keep constant energy, so the transition has no dip
 /// in the middle the way a linear fade does.
 enum CrossfadeCurve {
@@ -129,8 +157,9 @@ final class TonalPadEngine {
               (try? file.read(into: buffer)) != nil
         else { return nil }
 
-        buffers[note] = buffer
-        return buffer
+        let looped = SeamlessLoop.make(from: buffer) ?? buffer
+        buffers[note] = looped
+        return looped
     }
 
     /// Equal-power ramp, authoritative over **every** player: anything that is not `incoming`
