@@ -110,7 +110,7 @@ struct Sheet<Content: View, Footer: View>: View {
 
             footer()
         }
-        .background(theme.bg)
+        .background(ThemeBackdrop())
     }
 }
 

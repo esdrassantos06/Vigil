@@ -12,8 +12,7 @@ extension AppModel {
 
     func savePads() { scheduleAutosave() }
 
-    /// Writes anything still waiting on the debounce. Quitting within 300ms of a change
-    /// would otherwise lose it.
+    /// Quitting within the debounce window would otherwise lose the change.
     func flushPendingWrites() {
         commitAutosave()
         settingsSaveTask?.cancel()
@@ -41,7 +40,6 @@ extension AppModel {
         syncActiveSet()
     }
 
-    /// Factory kits are read only; edits stay in the unsaved marker.
     func syncActiveKit() {
         guard case .user(let id) = currentKit else { return }
         userKits.update(id: id, slots: currentSlots())
@@ -151,14 +149,14 @@ extension AppModel {
 
     func restoreTheme() {
         if let raw = defaults.string(forKey: themeKey),
-           let saved = ThemePreference(rawValue: raw) {
+           let saved = AppTheme(rawValue: raw) {
             theme = saved
             return
         }
         guard let data = defaults.data(forKey: settingsKey),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let raw = json["theme"] as? String,
-              let saved = ThemePreference(rawValue: raw)
+              let saved = AppTheme(rawValue: raw)
         else { return }
         theme = saved
     }
@@ -166,7 +164,7 @@ extension AppModel {
     func loadSettings() {
         if let data = defaults.data(forKey: settingsKey),
            let decoded = try? JSONDecoder().decode(Settings.self, from: data) {
-            settings = decoded
+            settings = decoded.clamped()
         }
         applySettings()
     }

@@ -33,7 +33,7 @@ enum MidiTarget: Hashable, Sendable {
         case .stop: "Stop"
         case .padMaster: "Volume Master (Pad)"
         case .cutoff: "Cutoff (Pad)"
-        case .highpass: "HPF (Pad)"
+        case .highpass: "Passa-alta (Pad)"
         case .drumMaster: "Master (Drum)"
         case .drumVolume(let index): "Volume (Drum Pad \(index + 1))"
         case .metronomeVolume: "Volume (Metrônomo)"

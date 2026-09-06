@@ -1,26 +1,6 @@
 import Foundation
 import SwiftUI
 
-enum ThemePreference: String, Codable, CaseIterable, Sendable {
-    case system, light, dark
-
-    var label: String {
-        switch self {
-        case .system: "Sistema"
-        case .light: "Claro"
-        case .dark: "Escuro"
-        }
-    }
-
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .system: nil
-        case .light: .light
-        case .dark: .dark
-        }
-    }
-}
-
 /// Kept out of `Settings`: loading a set must not change the app language.
 enum Language: String, Codable, CaseIterable, Sendable {
     case pt, en, es, fr
@@ -75,7 +55,17 @@ struct Settings: Codable, Equatable {
     var metronomeVolume: Double = 0.8
     var metronomePan: Double = 0
 
-    static let cutoffRange = 1_200.0...12_000.0
+    /// A stored value can sit outside the range after the range itself changes.
+    func clamped() -> Settings {
+        var copy = self
+        copy.cutoff = min(max(cutoff, Self.cutoffRange.lowerBound), Self.cutoffRange.upperBound)
+        copy.highpass = min(max(highpass, Self.highpassRange.lowerBound), Self.highpassRange.upperBound)
+        copy.crossfade = min(max(crossfade, Self.crossfadeRange.lowerBound), Self.crossfadeRange.upperBound)
+        copy.bpm = min(max(bpm, Self.bpmRange.lowerBound), Self.bpmRange.upperBound)
+        return copy
+    }
+
+    static let cutoffRange = 800.0...6_000.0
     static let highpassRange = 20.0...1_200.0
     static let crossfadeRange = 0.2...8.0
     static let bpmRange = 20.0...300.0

@@ -46,7 +46,7 @@ struct ManageList: View {
             Spacer(minLength: 0)
         }
         .frame(width: 480, height: 560)
-        .background(theme.bg)
+        .background(ThemeBackdrop())
         .sheet(item: $renaming) { item in
             NamePrompt(
                 title: "Renomear",

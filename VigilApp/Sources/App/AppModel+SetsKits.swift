@@ -15,10 +15,9 @@ extension AppModel {
         toasts.success(t("Set \(set.name) salvo."))
     }
 
-    /// Does not cut the audio: the tonal pad swaps texture through the crossfade.
     func loadSet(_ set: VigilSet) {
         isLoading = true
-        settings = set.settings
+        settings = set.settings.clamped()
         tonal.selectSound(set.padSoundID)
         currentSetID = set.id
         if let kit = set.kit {
@@ -108,7 +107,6 @@ extension AppModel {
         }
     }
 
-    /// - Returns: false when the pad could not be filled.
     @discardableResult
     func apply(source: PadSource, to pad: DrumPad) -> Bool {
         switch source {

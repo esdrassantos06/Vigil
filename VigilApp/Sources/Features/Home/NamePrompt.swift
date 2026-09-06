@@ -64,7 +64,7 @@ struct NamePrompt: View {
         }
         .padding(Metrics.zoneGap)
         .frame(width: 380)
-        .background(theme.bg)
+        .background(ThemeBackdrop())
         // Without focus here the keystroke falls through to the home handler and fires a pad.
         .task { isFocused = true }
     }

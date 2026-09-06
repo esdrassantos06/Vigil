@@ -1,6 +1,11 @@
 import Foundation
 import Observation
 
+enum AppSheet: String, Identifiable, Sendable {
+    case settings, midi, saveKit, saveSet, manageSets, manageSamples
+    var id: String { rawValue }
+}
+
 /// Owns the audio graph and the stores. The UI talks to this, never to AVFoundation.
 ///
 /// Split into per-topic extensions (`AppModel+*.swift`). `private` is file scoped, so
@@ -19,7 +24,7 @@ final class AppModel {
     let midi = MidiEngine()
     let midiConfig: MidiConfig
 
-    var theme: ThemePreference = .system {
+    var theme: AppTheme = .system {
         didSet {
             guard theme != oldValue else { return }
             defaults.set(theme.rawValue, forKey: themeKey)
@@ -33,9 +38,6 @@ final class AppModel {
         }
     }
 
-    /// Views read the environment locale; the model builds Strings and needs the bundle.
-    /// - Parameter key: localization key, extracted into the string catalogue.
-    /// - Returns: the string in the selected language.
     func t(_ key: String.LocalizationValue) -> String {
         String(localized: key, bundle: language.bundle, locale: language.locale)
     }
@@ -57,6 +59,9 @@ final class AppModel {
     }
 
     var learning: LearnRequest?
+
+    var activeSheet: AppSheet?
+    var isImporting = false
 
     var settings = Settings() {
         didSet {
@@ -126,8 +131,6 @@ final class AppModel {
     @ObservationIgnored let themeKey = "theme"
     @ObservationIgnored let defaultKitID = "DrumKit1"
 
-    /// - Parameter defaults: injected so tests never touch the real preferences.
-    /// - Parameter samplesDirectory: injected so tests never write into Application Support.
     init(defaults: UserDefaults = .standard,
          samplesDirectory: URL = SampleLibrary.defaultDirectory) {
         self.defaults = defaults
@@ -146,8 +149,6 @@ final class AppModel {
 
     func toggleNote(_ note: Note) { tonal.toggle(note) }
 
-    /// A load that fails quietly is the bug class this project keeps hitting, so failures are
-    /// counted and surfaced instead of dropped on the floor.
     /// - Returns: false when the file could not be read.
     func load(_ url: URL, into pad: DrumPad, name: String, source: PadSource) -> Bool {
         do {
@@ -159,7 +160,6 @@ final class AppModel {
         }
     }
 
-    /// One toast for the whole batch, so loading a broken kit does not fire eight of them.
     func reportUnreadable(_ count: Int) {
         guard count > 0 else { return }
         toasts.error(t("\(count) pad(s) sem som: o arquivo não pôde ser lido."))

@@ -13,7 +13,7 @@ struct SettingsView: View {
                     percentRow("Master", value: $model.settings.padMaster)
                     panRow("Pan", value: $model.settings.padPan)
                     hertzRow("Cutoff", value: $model.settings.cutoff, range: Settings.cutoffRange)
-                    hertzRow("HPF", value: $model.settings.highpass, range: Settings.highpassRange)
+                    hertzRow("Passa-alta", value: $model.settings.highpass, range: Settings.highpassRange)
                     secondsRow("Crossfade", value: $model.settings.crossfade)
                 }
 
@@ -100,16 +100,36 @@ struct SettingsView: View {
                 }
 
                 Panel("Tema") {
-                    Picker("", selection: $model.theme) {
-                        ForEach(ThemePreference.allCases, id: \.self) { option in
-                            Text(LocalizedStringKey(option.label)).tag(option)
+                    themeRow("Escuros", AppTheme.darkThemes)
+                    themeRow("Claros", AppTheme.lightThemes)
+                    Button { model.theme = .system } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: model.theme == .system ? "checkmark.circle.fill" : "circle")
+                            Text("Sistema")
                         }
+                        .font(.system(size: 13))
+                        .foregroundStyle(model.theme == .system ? theme.accent : theme.inkMuted)
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                    .buttonStyle(.plain)
                 }
         }
         .frame(width: 460, height: 640)
+    }
+
+    private func themeRow(_ title: LocalizedStringKey, _ options: [AppTheme]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ZoneLabel(title)
+            HStack(spacing: 8) {
+                ForEach(options) { option in
+                    Button { model.theme = option } label: {
+                        ThemeSwatch(option: option, isSelected: model.theme == option)
+                    }
+                    .buttonStyle(.plain)
+                    .help(LocalizedStringKey(option.name))
+                }
+                Spacer(minLength: 0)
+            }
+        }
     }
 
     private var inputsLabel: LocalizedStringKey {
@@ -151,12 +171,20 @@ struct SettingsView: View {
         return row(label, readout, Slider(value: value, in: -1...1))
     }
 
+    /// Log scale: pitch is heard logarithmically, so a linear slider spends most of its travel
+    /// in the top octave where almost nothing changes.
     private func hertzRow(_ label: LocalizedStringKey, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
         let hz = value.wrappedValue
         let readout = hz >= 1_000
             ? String(format: "%.1f kHz", hz / 1_000)
             : String(format: "%.0f Hz", hz)
-        return row(label, "\(readout)", Slider(value: value, in: range))
+        let logarithmic = Binding(
+            get: { log10(max(range.lowerBound, value.wrappedValue)) },
+            set: { value.wrappedValue = min(range.upperBound, pow(10, $0)) }
+        )
+        return row(label, "\(readout)",
+                   Slider(value: logarithmic,
+                          in: log10(range.lowerBound)...log10(range.upperBound)))
     }
 
     private func secondsRow(_ label: LocalizedStringKey, value: Binding<Double>) -> some View {
