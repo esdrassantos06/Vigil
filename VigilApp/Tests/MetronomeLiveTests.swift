@@ -12,6 +12,7 @@ struct MetronomeLiveTests {
     private func runningMetronome(bpm: Double = 240) throws -> (AudioGraph, MetronomeEngine) {
         let graph = AudioGraph()
         let metronome = MetronomeEngine(graph: graph, catalog: FactoryCatalog())
+        LiveLevel.hush(metronome)
         metronome.bpm = bpm
         try graph.start()
         metronome.start()
