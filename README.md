@@ -22,10 +22,16 @@ machine, the way an Electron app ships its source. Ad-hoc signing, no developer 
 
 - **Tonal pad.** Twelve chromatic notes, one sounding at a time, looped, with an equal-power
   crossfade on the change. Every note is its own recording, so nothing is pitch shifted.
+  Up to three more timbres can be stacked on the main one, each on its own fader. A
+  three-band EQ, a compressor, a reverb, and a pulse that shapes the volume in time with the
+  metronome (pump, smooth or gate, from quarters to sixteenths), applied sample by sample on
+  the render thread. A note can latch until pressed again, or play only while its key or the
+  sustain pedal holds it.
 - **Drum pads.** Eight one-shots with immediate retrigger, eight voices each so a fast repeat
   rings over the last one instead of cutting it, and a play mode per pad, the way a drum
   program has it: overlap, or restart for a long one-shot you do not want stacking. Per pad
-  volume and colour, and a hard stop that leaves the tonal pad playing.
+  volume, colour, trim (where the sample starts and ends) and reverb send, a high-pass and
+  low-pass on the drum bus, and a hard stop that leaves the tonal pad playing.
 - **Kits and sets.** A kit owns the eight pads; a set carries the tonal sound, the filters, the
   metronome and which kit is active. Both save themselves as you work.
 - **Metronome.** 20 to 300 BPM, six time signatures, tap tempo, four click sounds, accent on
@@ -33,7 +39,12 @@ machine, the way an Electron app ships its source. Ad-hoc signing, no developer 
   refilled from outside the main actor, so a busy interface cannot silence the count.
 - **MIDI.** CoreMIDI input with hot-plug, a channel filter, and MIDI Learn over every pad,
   every live control and the metronome. Computer keys and MIDI share one mapping table, and
-  each target holds one of each.
+  each target holds one of each. A controller works before anything is learned: notes on the
+  chosen channel play the tonal pad by pitch class, channel 10 notes 36 to 43 hit the drum
+  pads, CC 64 is the sustain pedal (with a polarity switch), and CC 120 or 123 stops every
+  sound.
+- **Output delay.** Everything Vigil plays can be pushed back by up to 250 ms to line it up
+  with other gear.
 - **Seven themes**, four dark and three light, plus one that follows the system.
 - **Four languages**: Portuguese, English, Spanish and French, switchable without a restart.
 
@@ -66,7 +77,7 @@ cd VigilApp
 xcodebuild test -project Vigil.xcodeproj -scheme VigilTests -destination 'platform=macOS'
 ```
 
-74 tests. The audio ones measure the rendered signal rather than checking that a function was
+The audio tests measure the rendered signal rather than checking that a function was
 called, because every audio bug in this project so far has been silent: it compiled, it ran,
 and nothing came out. Timing is measured by rendering the graph offline, sample by sample,
 with no wall clock involved.

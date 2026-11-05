@@ -4,11 +4,13 @@ import Observation
 
 enum MidiEvent: Sendable {
     case note(channel: Int, number: UInt8, velocity: UInt8)
+    /// Note Off, or Note On at velocity zero.
+    case noteOff(channel: Int, number: UInt8)
     case control(channel: Int, number: UInt8, value: UInt8)
 
     var channel: Int {
         switch self {
-        case .note(let channel, _, _), .control(let channel, _, _): channel
+        case .note(let channel, _, _), .noteOff(let channel, _), .control(let channel, _, _): channel
         }
     }
 }
@@ -162,30 +164,36 @@ final class MidiEngine {
     private nonisolated static func events(in packet: MIDIEventPacket) -> [MidiEvent] {
         withUnsafeBytes(of: packet.words) { raw in
             let words = raw.bindMemory(to: UInt32.self)
-            let count = min(Int(packet.wordCount), words.count)
-            var events: [MidiEvent] = []
-            var index = 0
-
-            while index < count {
-                let word = words[index]
-                let messageType = Int(word >> 28)
-                index += wordsPerMessage[messageType]
-                guard messageType == 0x2 else { continue }
-
-                let status = (word >> 16) & 0xFF
-                let channel = Int(status & 0x0F) + 1
-                let data1 = UInt8((word >> 8) & 0x7F)
-                let data2 = UInt8(word & 0x7F)
-
-                switch status >> 4 {
-                case 0x9 where data2 > 0:
-                    events.append(.note(channel: channel, number: data1, velocity: data2))
-                case 0xB: events.append(.control(channel: channel, number: data1, value: data2))
-                default: continue
-                }
-            }
-            return events
+            return events(words: Array(words.prefix(min(Int(packet.wordCount), words.count))))
         }
+    }
+
+    /// Channel-voice messages in a run of UMP words; anything else is skipped by its size.
+    nonisolated static func events(words: [UInt32]) -> [MidiEvent] {
+        var events: [MidiEvent] = []
+        var index = 0
+        let count = words.count
+
+        while index < count {
+            let word = words[index]
+            let messageType = Int(word >> 28)
+            index += wordsPerMessage[messageType]
+            guard messageType == 0x2 else { continue }
+
+            let status = (word >> 16) & 0xFF
+            let channel = Int(status & 0x0F) + 1
+            let data1 = UInt8((word >> 8) & 0x7F)
+            let data2 = UInt8(word & 0x7F)
+
+            switch status >> 4 {
+            case 0x9 where data2 > 0:
+                events.append(.note(channel: channel, number: data1, velocity: data2))
+            case 0x8, 0x9: events.append(.noteOff(channel: channel, number: data1))
+            case 0xB: events.append(.control(channel: channel, number: data1, value: data2))
+            default: continue
+            }
+        }
+        return events
     }
 }
 

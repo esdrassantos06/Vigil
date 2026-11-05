@@ -191,6 +191,9 @@ final class MetronomeEngine {
     /// than real time, so the wall-clock scheduler would fall behind.
     var autoSchedules = true
 
+    /// Fired as the first bar is queued, so anything tempo-synced can start on the downbeat.
+    @ObservationIgnored var onStart: (() -> Void)?
+
     func toggle() { isRunning ? stop() : start() }
 
     func start() {
@@ -214,6 +217,7 @@ final class MetronomeEngine {
         firstBeatSample = scheduler.begin()
         scheduler.fill(horizonSeconds: Self.scheduleHorizon)
         if autoSchedules { startPump(scheduler) }
+        onStart?()
     }
 
     /// Weakly held: an engine dropped without `stop()` has to end the pump, or it would keep

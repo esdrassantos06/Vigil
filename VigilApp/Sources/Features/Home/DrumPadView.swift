@@ -11,16 +11,24 @@ struct DrumPadView: View {
     let onVoicing: (PadVoicing) -> Void
     let onClear: () -> Void
     let onVolume: (Double) -> Void
+    let onTrim: (ClosedRange<Double>) -> Void
+    let onReverbSend: (Double) -> Void
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var scheme
     @State private var pickingColor = false
+    @State private var trimming = false
 
     var body: some View {
         VStack(spacing: 0) {
             Button(action: onTap) { face }
                 .buttonStyle(.plain)
                 .contextMenu { menu }
+                // One popover per view: the colour picker already sits on the card.
+                .popover(isPresented: $trimming, arrowEdge: .bottom) {
+                    TrimEditor(trim: pad.trim, reverbSend: pad.reverbSend,
+                               onChange: onTrim, onReverbSend: onReverbSend)
+                }
             if pad.isAssigned { volumeStrip }
         }
         .background(theme.surface2)
@@ -101,6 +109,9 @@ struct DrumPadView: View {
     @ViewBuilder
     private var menu: some View {
         Button("Cor do pad…") { pickingColor = true }
+        if pad.isAssigned {
+            Button("Recortar…") { trimming = true }
+        }
 
         Menu("Ao bater de novo") {
             Button {
@@ -158,6 +169,48 @@ extension PadColor {
     }
 }
 
+
+/// Start and end of the one-shot, as a share of its length, and the pad's reverb send.
+struct TrimEditor: View {
+    let trim: ClosedRange<Double>
+    let reverbSend: Double
+    let onChange: (ClosedRange<Double>) -> Void
+    let onReverbSend: (Double) -> Void
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Recorte")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(theme.ink)
+            row("Início", value: trim.lowerBound, range: 0...0.98) { onChange($0...max(trim.upperBound, $0 + 0.02)) }
+            row("Fim", value: trim.upperBound, range: 0.02...1) { onChange(min(trim.lowerBound, $0 - 0.02)...$0) }
+            Button("Restaurar") { onChange(PadTrim.full) }
+                .buttonStyle(.bordered)
+                .disabled(trim == PadTrim.full)
+            Divider()
+            row("Reverb", value: reverbSend, range: 0...1, set: onReverbSend)
+        }
+        .font(.system(size: 13))
+        .padding(14)
+        .frame(width: 260)
+    }
+
+    private func row(_ label: LocalizedStringKey, value: Double, range: ClosedRange<Double>,
+                     set: @escaping (Double) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(label).foregroundStyle(theme.ink)
+                Spacer()
+                Text(verbatim: "\(Int((value * 100).rounded()))%")
+                    .monospacedDigit()
+                    .foregroundStyle(theme.inkMuted)
+            }
+            Slider(value: Binding(get: { value }, set: set), in: range)
+        }
+    }
+}
 
 /// A popover rather than a submenu: macOS renders menu icons as templates and would eat the colour.
 struct ColorSwatchPicker: View {

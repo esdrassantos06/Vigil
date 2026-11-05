@@ -13,6 +13,17 @@ final class AudioGraph {
 
     var mixer: AVAudioMixerNode { engine.mainMixerNode }
 
+    /// Sits between the main mixer and the output, so every sound moves together.
+    private let delay = AVAudioUnitDelay()
+
+    /// Seconds added to everything Vigil plays; zero bypasses the unit.
+    var outputDelay: Double = 0 {
+        didSet {
+            delay.delayTime = min(max(outputDelay, 0), 2)
+            delay.bypass = outputDelay <= 0
+        }
+    }
+
     /// Set when the audio session refused to configure. The app would open silent, so this
     /// has to reach the user rather than sit in a log.
     private(set) var setupFailure: (any VigilError)?
@@ -23,6 +34,14 @@ final class AudioGraph {
         configureLowLatencyIO()
         // `prepare()` before any node exists fails inside AVAudioEngineGraph::Initialize.
         _ = engine.mainMixerNode
+        delay.feedback = 0
+        delay.wetDryMix = 100
+        delay.lowPassCutoff = 20_000
+        delay.delayTime = 0
+        delay.bypass = true
+        engine.attach(delay)
+        engine.connect(engine.mainMixerNode, to: delay, format: nil)
+        engine.connect(delay, to: engine.outputNode, format: nil)
         if preparesImmediately { engine.prepare() }
     }
 
@@ -33,10 +52,6 @@ final class AudioGraph {
 
     func attach(_ node: AVAudioNode, format: AVAudioFormat?) {
         engine.attach(node)
-        engine.connect(node, to: mixer, format: format)
-    }
-
-    func reconnect(_ node: AVAudioNode, format: AVAudioFormat) {
         engine.connect(node, to: mixer, format: format)
     }
 

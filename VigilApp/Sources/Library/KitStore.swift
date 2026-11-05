@@ -6,21 +6,29 @@ struct StoredSlot: Codable, Equatable, Sendable {
     var color: PadColor
     var volume: Double
     var voicing: PadVoicing
+    var trim: ClosedRange<Double>
+    var reverbSend: Double
 
-    init(source: PadSource, color: PadColor, volume: Double, voicing: PadVoicing = .poly) {
+    init(source: PadSource, color: PadColor, volume: Double, voicing: PadVoicing = .poly,
+         trim: ClosedRange<Double> = PadTrim.full, reverbSend: Double = 0) {
         self.source = source
         self.color = color
         self.volume = volume
         self.voicing = voicing
+        self.trim = trim
+        self.reverbSend = reverbSend
     }
 
-    /// Slots written before the play mode existed load as overlapping, which is what they did.
+    /// Slots written before the play mode or the trim existed load as overlapping and untrimmed,
+    /// which is what they did.
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         source = try container.decode(PadSource.self, forKey: .source)
         color = try container.decode(PadColor.self, forKey: .color)
         volume = try container.decode(Double.self, forKey: .volume)
         voicing = try container.decodeIfPresent(PadVoicing.self, forKey: .voicing) ?? .poly
+        trim = try container.decodeIfPresent(ClosedRange<Double>.self, forKey: .trim) ?? PadTrim.full
+        reverbSend = try container.decodeIfPresent(Double.self, forKey: .reverbSend) ?? 0
     }
 }
 
