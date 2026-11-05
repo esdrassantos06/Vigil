@@ -49,6 +49,11 @@ targets:
         ENABLE_APP_SANDBOX: "NO"
   VigilTests:
     type: bundle.unit-test
+    scheme:
+      testTargets:
+        - VigilTests
+      environmentVariables:
+        VIGIL_MUTE_OUTPUT: "1"
     supportedDestinations: [macOS]
     sources:
       - path: Tests
