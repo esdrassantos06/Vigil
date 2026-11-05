@@ -49,13 +49,18 @@ struct HomeView: View {
         // .onKeyPress only fires along the focus path, so the root has to be focusable.
         .focusable()
         .focusEffectDisabled()
-        .onKeyPress(phases: .down) { press in
+        .onKeyPress(phases: [.down, .repeat, .up]) { press in
             // While a sheet is open the keyboard belongs to it, not to the pads.
             // A menu shortcut carries a modifier; without this guard Command-S would also
             // fire a pad.
             guard !isSheetOpen, press.modifiers.isEmpty,
                   let character = press.characters.first else { return .ignored }
-            return model.handleKey(character) ? .handled : .ignored
+            let handled = switch press.phase {
+            case .up: model.handleKeyUp(character)
+            case .repeat: model.handleKeyRepeat(character)
+            default: model.handleKey(character)
+            }
+            return handled ? .handled : .ignored
         }
     }
 

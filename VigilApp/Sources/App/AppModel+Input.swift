@@ -7,6 +7,44 @@ extension AppModel {
         receive(.key(String(character).lowercased()), value: nil)
     }
 
+    /// A computer key coming up releases its tonal note when the pad is unlatched.
+    /// - Returns: true when the key is mapped, so the event counts as handled and macOS does
+    ///   not sound its alert.
+    func handleKeyUp(_ character: Character) -> Bool {
+        guard let target = keyTarget(character) else { return false }
+        if case .tonal(let note) = target, learning == nil { releaseNote(note) }
+        return true
+    }
+
+    /// Auto-repeat of a held key. It never fires the target again: a held note would toggle
+    /// off and a held drum key would machine-gun the pad.
+    /// - Returns: true when the key is mapped, so the event counts as handled.
+    func handleKeyRepeat(_ character: Character) -> Bool {
+        keyTarget(character) != nil
+    }
+
+    private func keyTarget(_ character: Character) -> MidiTarget? {
+        midiConfig.target(for: .key(String(character).lowercased()))
+    }
+
+    /// A note pressed on screen or on the keyboard: latched it toggles, unlatched it sounds
+    /// until `releaseNote` and a second press of the same note does not stop it.
+    func pressNote(_ note: Note) {
+        guard !settings.padLatch else {
+            toggleNote(note)
+            return
+        }
+        heldNotes.insert(note)
+        if tonal.activeNote != note { tonal.play(note) }
+    }
+
+    /// Ends a press. A latched pad ignores it.
+    func releaseNote(_ note: Note) {
+        guard !settings.padLatch else { return }
+        heldNotes.remove(note)
+        releaseUnheldNote()
+    }
+
     /// Learned bindings first. Unlearned input falls back the way a controller expects out of
     /// the box: channel 10 notes 36 to 43 hit the drum pads, other notes on the chosen channel
     /// play the tonal pad by pitch class, CC 64 is the sustain pedal and CC 120 or 123 stops
@@ -57,7 +95,7 @@ extension AppModel {
     /// Stops the pad once no key and no pedal holds its note. A latched pad ignores this.
     func releaseUnheldNote() {
         guard !settings.padLatch, !sustainDown, let active = tonal.activeNote,
-              !heldKeys.values.contains(active) else { return }
+              !heldKeys.values.contains(active), !heldNotes.contains(active) else { return }
         tonal.stop()
     }
 
@@ -101,7 +139,7 @@ extension AppModel {
         // A CC below halfway does not fire, so releasing a button will not trigger twice.
         let fired = value.map { $0 >= 0.5 } ?? true
         switch target {
-        case .tonal(let note): if fired { toggleNote(note) }
+        case .tonal(let note): if fired { pressNote(note) }
         case .drum(let index):
             if fired, let pad = drums.pads[safe: index] { trigger(pad, velocity: velocity) }
         case .stop: if fired { drums.stopAll() }
