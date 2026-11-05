@@ -63,12 +63,12 @@ struct AudioOutputTests {
     #if os(macOS)
     @Test("A model whose engine is not running leaves the hardware alone")
     func noHardwareBeforeStart() {
-        guard let device = AudioOutput.defaultOutputID(),
-              let before = AudioOutput.bufferFrames(of: device) else { return }
         let id = UUID().uuidString
         let app = AppModel(defaults: UserDefaults(suiteName: "vigil.tests.\(id)")!,
                            samplesDirectory: FileManager.default.temporaryDirectory
                                .appendingPathComponent("vigil-tests/\(id)"))
+        guard let device = AudioOutput.defaultOutputID(),
+              let before = AudioOutput.bufferFrames(of: device) else { return }
         app.bufferFrames = before == 512 ? 256 : 512
         #expect(AudioOutput.bufferFrames(of: device) == before)
     }

@@ -72,6 +72,12 @@ final class AudioGraph {
         } catch {
             setupFailure = AudioSessionError.sessionUnavailable
         }
+        #elseif os(macOS)
+        // Set while the graph is built, before anything renders: the same value from every
+        // graph is then a no-op, while changing it later reconfigures engines already running.
+        if let device = AudioOutput.defaultOutputID() {
+            AudioOutput.setBufferFrames(Self.defaultBufferFrames, on: device)
+        }
         #endif
     }
 
