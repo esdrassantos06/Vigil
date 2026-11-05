@@ -155,13 +155,25 @@ final class MetronomeEngine {
     var timeSignature: TimeSignature = .fourFour { didSet { restartIfRunning() } }
     var accentFirst = true { didSet { clicks?.setAccentFirst(accentFirst) } }
     var doubleTime = false { didSet { restartIfRunning() } }
-    var volume: Double = 0.8 { didSet { player.volume = Float(volume) } }
-    var pan: Double = 0 { didSet { player.pan = Float(pan) } }
+    var volume: Double = 0.8 {
+        didSet {
+            player.volume = Float(volume)
+            tapPlayer.volume = Float(volume)
+        }
+    }
+    var pan: Double = 0 {
+        didSet {
+            player.pan = Float(pan)
+            tapPlayer.pan = Float(pan)
+        }
+    }
     var sound: ClickSound = .logic { didSet { loadBuffers() } }
 
     @ObservationIgnored private let graph: AudioGraph
     @ObservationIgnored private let catalog: FactoryCatalog
     @ObservationIgnored private let player = AVAudioPlayerNode()
+    /// Its own node, so a tap never cuts into clicks the scheduler has queued.
+    @ObservationIgnored private let tapPlayer = AVAudioPlayerNode()
     @ObservationIgnored private(set) var normalBuffer: AVAudioPCMBuffer?
     @ObservationIgnored private(set) var accentBuffer: AVAudioPCMBuffer?
     @ObservationIgnored private var clicks: ClickScheduler?
@@ -183,7 +195,9 @@ final class MetronomeEngine {
         self.graph = graph
         self.catalog = catalog
         graph.attach(player, format: graph.mixer.outputFormat(forBus: 0))
+        graph.attach(tapPlayer, format: graph.mixer.outputFormat(forBus: 0))
         player.volume = Float(volume)
+        tapPlayer.volume = Float(volume)
         loadBuffers()
     }
 
@@ -240,7 +254,10 @@ final class MetronomeEngine {
         player.stop()
     }
 
+    /// Sounds the chosen click, then reads the tempo from the last taps. While the metronome
+    /// runs its own clicks already answer, so the tap stays silent rather than doubling them.
     func tap() {
+        if !isRunning { playTapClick() }
         let now = Date()
         tapTimes.append(now)
         tapTimes = tapTimes.filter { now.timeIntervalSince($0) < 3 }
@@ -250,6 +267,12 @@ final class MetronomeEngine {
         let average = intervals.reduce(0, +) / Double(intervals.count)
         guard average > 0 else { return }
         bpm = min(300, max(20, (60.0 / average).rounded()))
+    }
+
+    private func playTapClick() {
+        guard let normalBuffer else { return }
+        tapPlayer.scheduleBuffer(normalBuffer, at: nil, options: .interrupts)
+        if !tapPlayer.isPlaying { tapPlayer.play() }
     }
 
     /// How far ahead clicks are queued. The pump refills from a detached task, so this only

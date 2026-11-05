@@ -18,7 +18,7 @@ struct MidiView: View {
         } footer: {
             footer
         }
-        .frame(width: 560, height: 640)
+        .sheetSize(width: 560, height: 640)
         // Without focus .onKeyPress never fires.
         .focusable()
         .focusEffectDisabled()
@@ -144,7 +144,7 @@ struct MidiView: View {
                 .frame(height: 1)
             HStack(spacing: 10) {
                 Button("Limpar mapeamentos") { model.midiConfig.clearAll() }
-                Button("Restaurar teclas padrão") { model.midiConfig.restoreDefaults() }
+                Button("Restaurar padrões") { model.midiConfig.restoreDefaults() }
                 Spacer(minLength: 0)
             }
             .buttonStyle(.bordered)

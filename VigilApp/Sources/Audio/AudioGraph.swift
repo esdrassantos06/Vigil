@@ -7,8 +7,8 @@ import CoreAudio
 final class AudioGraph {
     let engine = AVAudioEngine()
 
-    /// 128 frames at 44.1kHz is about 2.9ms. Raise to 256 if the audio drops out.
-    private let preferredFrames: UInt32 = 128
+    /// 128 frames at 44.1kHz is about 2.9ms; the user can raise it in Settings if audio drops.
+    static let defaultBufferFrames = 128
     private let sampleRate: Double = 44_100
 
     var mixer: AVAudioMixerNode { engine.mainMixerNode }
@@ -66,41 +66,77 @@ final class AudioGraph {
         // Preferred values are hints. The system may keep its own and still play, so a
         // refusal here costs latency, not sound, and stays quiet.
         try? session.setPreferredSampleRate(sampleRate)
-        try? session.setPreferredIOBufferDuration(Double(preferredFrames) / sampleRate)
+        try? session.setPreferredIOBufferDuration(Double(Self.defaultBufferFrames) / sampleRate)
         do {
             try session.setActive(true)
         } catch {
             setupFailure = AudioSessionError.sessionUnavailable
         }
-        #elseif os(macOS)
-        setOutputBufferFrameSize(preferredFrames)
+        #endif
+    }
+
+    /// Routes the engine to an output and asks it for a buffer size, then reads back what the
+    /// hardware actually runs. Switching device restarts the engine, which stops what is playing.
+    /// - Parameters:
+    ///   - uid: the device to use, or nil for the system output.
+    ///   - bufferFrames: the requested size, clamped to what the device accepts.
+    /// - Returns: the buffer in use afterwards.
+    /// - Throws: `OutputError.deviceMissing` when `uid` names no connected output.
+    @discardableResult
+    func applyOutput(uid: String?, bufferFrames: Int) throws -> ActiveBuffer? {
+        #if os(macOS)
+        let target: AudioDeviceID
+        if let uid {
+            guard let id = AudioOutput.deviceID(forUID: uid) else { throw OutputError.deviceMissing }
+            target = id
+        } else {
+            guard let id = AudioOutput.defaultOutputID() else { return nil }
+            target = id
+        }
+        if currentOutputID != target { try switchOutput(to: target) }
+        let range = AudioOutput.bufferRange(of: target) ?? 15...4096
+        AudioOutput.setBufferFrames(AudioOutput.clamp(bufferFrames, to: range), on: target)
+        return ActiveBuffer(
+            frames: AudioOutput.bufferFrames(of: target) ?? bufferFrames,
+            sampleRate: AudioOutput.nominalSampleRate(of: target) ?? sampleRate
+        )
+        #else
+        let session = AVAudioSession.sharedInstance()
+        // A hint: the system may keep its own size, which the read-back then reports.
+        try? session.setPreferredIOBufferDuration(Double(bufferFrames) / sampleRate)
+        return ActiveBuffer(frames: Int((session.ioBufferDuration * session.sampleRate).rounded()),
+                            sampleRate: session.sampleRate)
         #endif
     }
 
     #if os(macOS)
-    /// On macOS the buffer size belongs to the output device, not to a session.
-    private func setOutputBufferFrameSize(_ frames: UInt32) {
-        var deviceAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var deviceID = AudioDeviceID(0)
-        var deviceSize = UInt32(MemoryLayout<AudioDeviceID>.size)
-        let status = AudioObjectGetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject), &deviceAddress, 0, nil, &deviceSize, &deviceID
-        )
-        guard status == noErr, deviceID != kAudioObjectUnknown else { return }
+    /// The sizes the given output accepts, or every offered size when it cannot say.
+    func bufferChoices(forUID uid: String?) -> [Int] {
+        let device = uid.flatMap(AudioOutput.deviceID(forUID:)) ?? AudioOutput.defaultOutputID()
+        guard let device, let range = AudioOutput.bufferRange(of: device) else { return AudioOutput.bufferChoices }
+        return AudioOutput.bufferChoices.filter { range.contains($0) }
+    }
 
-        var bufferAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyBufferFrameSize,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var value = frames
-        AudioObjectSetPropertyData(
-            deviceID, &bufferAddress, 0, nil, UInt32(MemoryLayout<UInt32>.size), &value
-        )
+    private var currentOutputID: AudioDeviceID? {
+        guard let unit = engine.outputNode.audioUnit else { return nil }
+        var id = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioUnitGetProperty(unit, kAudioOutputUnitProperty_CurrentDevice,
+                                          kAudioUnitScope_Global, 0, &id, &size)
+        return status == noErr ? id : nil
+    }
+
+    private func switchOutput(to device: AudioDeviceID) throws {
+        guard let unit = engine.outputNode.audioUnit else { throw OutputError.deviceRefused }
+        let wasRunning = engine.isRunning
+        engine.stop()
+        var id = device
+        let status = AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice,
+                                          kAudioUnitScope_Global, 0, &id,
+                                          UInt32(MemoryLayout<AudioDeviceID>.size))
+        engine.prepare()
+        if wasRunning { try engine.start() }
+        guard status == noErr else { throw OutputError.deviceRefused }
     }
     #endif
 }

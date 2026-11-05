@@ -74,7 +74,6 @@ struct ThemeTests {
         if case .flat = AppTheme.light.resolve(.light).backdrop {} else {
             Issue.record("the default light theme is not flat")
         }
-        #expect(!AppTheme.dark.resolve(.dark).glass)
     }
 
     @Test("System follows the appearance")

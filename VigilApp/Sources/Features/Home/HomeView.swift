@@ -5,30 +5,65 @@ struct HomeView: View {
     @Environment(\.colorScheme) private var scheme
     @Bindable var model: AppModel
 
+    @State private var windowSize = CGSize(width: 1280, height: 820)
+
+    /// From the window, never the content: measuring the content would let a wide layout keep
+    /// itself wide.
+    private var isNarrow: Bool { windowSize.width < 1180 }
+    private var isPortrait: Bool { windowSize.height > windowSize.width }
+
     private var isSheetOpen: Bool { model.activeSheet != nil }
 
     var body: some View {
+        GeometryReader { proxy in
+            stage
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .onChange(of: proxy.size, initial: true) { _, size in windowSize = size }
+        }
+    }
+
+    @ViewBuilder
+    private var stage: some View {
         let theme = model.theme.resolve(scheme)
 
         ZStack {
             ThemeBackdrop()
+            StageHaze(
+                padColors: model.drums.pads.map { $0.isAssigned ? $0.color.color(scheme) : nil },
+                isNoteSounding: model.tonal.activeNote != nil,
+                isPortrait: isPortrait
+            )
 
-            VStack(spacing: Metrics.zoneGap) {
-                header
-                selectors
-                HStack(alignment: .top, spacing: Metrics.zoneGap) {
-                    tonalZone
-                        .frame(width: 268)
-                    drumZone
+            VStack(spacing: 14) {
+                HomeToolbar(model: model)
+                StageStrip(model: model, isCompact: isNarrow)
+                if isPortrait {
+                    VStack(spacing: 16) {
+                        tonalZone
+                            .containerRelativeFrame(.vertical, count: 10, span: 3, spacing: 16)
+                        drumZone
+                    }
+                } else {
+                    HStack(alignment: .top, spacing: 16) {
+                        tonalZone
+                            .containerRelativeFrame(.horizontal, count: 12, span: 5, spacing: 16)
+                        drumZone
+                    }
+                    .frame(maxHeight: .infinity)
                 }
-                .frame(maxHeight: .infinity)
             }
-            .padding(Metrics.zoneGap)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+            .padding(.top, 12)
+
 
             if !isSheetOpen {
                 ToastLayer(center: model.toasts).zIndex(1)
             }
         }
+        #if os(macOS)
+        .frame(minWidth: 960, minHeight: 680)
+        #endif
         .environment(\.theme, theme)
         .environment(\.locale, model.language.locale)
         .fileImporter(
@@ -49,13 +84,18 @@ struct HomeView: View {
         // .onKeyPress only fires along the focus path, so the root has to be focusable.
         .focusable()
         .focusEffectDisabled()
-        .onKeyPress(phases: .down) { press in
+        .onKeyPress(phases: [.down, .repeat, .up]) { press in
             // While a sheet is open the keyboard belongs to it, not to the pads.
             // A menu shortcut carries a modifier; without this guard Command-S would also
             // fire a pad.
             guard !isSheetOpen, press.modifiers.isEmpty,
                   let character = press.characters.first else { return .ignored }
-            return model.handleKey(character) ? .handled : .ignored
+            let handled = switch press.phase {
+            case .up: model.handleKeyUp(character)
+            case .repeat: model.handleKeyRepeat(character)
+            default: model.handleKey(character)
+            }
+            return handled ? .handled : .ignored
         }
     }
 
@@ -143,105 +183,33 @@ struct HomeView: View {
         }
     }
 
-    private var header: some View {
-        let theme = model.theme.resolve(scheme)
-        return HStack(spacing: 12) {
-            MainMenu(
-                padSounds: model.catalog.padSoundList,
-                activeSoundID: model.tonal.soundID,
-                kits: model.catalog.kits,
-                userKits: model.userKits.kits,
-                currentKit: model.currentKit,
-                onSelectSound: { model.selectPadSound($0.id) },
-                onSelectKit: { model.selectKit($0) },
-                onSelectUserKit: { model.selectUserKit($0) },
-                onSaveKit: { model.activeSheet = .saveKit },
-                onDeleteUserKit: { model.deleteUserKit($0) },
-                onImport: { model.isImporting = true },
-                currentSetName: model.currentSetName,
-                sets: model.sets.sets,
-                onSelectSet: { model.loadSet($0) },
-                onDefaultSet: { model.loadDefaultSet() },
-                onSaveSet: { model.activeSheet = .saveSet },
-                onManageSets: { model.activeSheet = .manageSets },
-                onManageSamples: { model.activeSheet = .manageSamples }
-            )
-            Wordmark()
-            Spacer()
-            Button { model.settings.doubleTime.toggle() } label: {
-                Text("2x")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(model.settings.doubleTime ? theme.accent : theme.inkMuted)
-                    .frame(width: Metrics.minTarget, height: Metrics.minTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Dobra o clique do metrônomo")
-
-            Button { model.metronome.toggle() } label: {
-                Image(systemName: "metronome")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(model.metronome.isRunning ? theme.accent : theme.ink)
-                    .frame(width: Metrics.minTarget, height: Metrics.minTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Metrônomo")
-
-            Button { model.activeSheet = .settings } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(theme.ink)
-                    .frame(width: Metrics.minTarget, height: Metrics.minTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Configurações")
-        }
-    }
-
-    private var selectors: some View {
-        VStack(spacing: 6) {
-            StepperSelector(
-                title: "Pad",
-                value: model.padSoundName,
-                onPrevious: { model.stepPadSound(-1) },
-                onNext: { model.stepPadSound(1) }
-            )
-            StepperSelector(
-                title: "Drum Kit",
-                value: model.kitName,
-                onPrevious: { model.stepKit(-1) },
-                onNext: { model.stepKit(1) }
-            )
-        }
-    }
-
     private var tonalZone: some View {
-        VStack(alignment: .leading, spacing: Metrics.padGap) {
-            ZoneLabel("Tons")
+        VStack(spacing: Metrics.padGap) {
             TonalPadGrid(
                 activeNote: model.tonal.activeNote,
                 sharps: model.settings.sharps,
                 major: model.settings.major,
-                onToggle: { model.toggleNote($0) }
+                intensity: model.settings.padMaster,
+                columns: isPortrait ? 6 : 4,
+                keyHint: { model.midiConfig.keyHint(for: .tonal($0)) },
+                onPress: { model.pressNote($0) },
+                onRelease: { model.releaseNote($0) }
             )
-            TransportPanel(
-                activeNote: model.tonal.activeNote,
-                sharps: model.settings.sharps,
-                major: model.settings.major,
-                onStopDrums: { model.drums.stopAll() }
-            )
+            TonalFooter(latch: $model.settings.padLatch, crossfade: model.settings.crossfade)
         }
+        .padding(16)
+        .frame(maxHeight: .infinity)
+        .glassPane(radius: Metrics.paneRadius)
     }
 
     private var drumZone: some View {
         VStack(alignment: .leading, spacing: Metrics.padGap) {
-            ZoneLabel("Drums")
             ForEach(padRows, id: \.self) { row in
                 HStack(spacing: Metrics.padGap) {
                     ForEach(row, id: \.self) { index in
-                        if let pad = model.drums.pads[safe: index] { padCard(pad) }
+                        if let pad = model.drums.pads[safe: index] {
+                            padCard(pad).frame(minWidth: 0, maxWidth: .infinity)
+                        }
                     }
                 }
             }
@@ -257,6 +225,7 @@ struct HomeView: View {
     private func padCard(_ pad: DrumPad) -> some View {
         DrumPadView(
             pad: pad,
+            keyHint: model.midiConfig.keyHint(for: .drum(pad.id)),
             kits: model.catalog.kits,
             samples: model.library.samples,
             onTap: { model.trigger(pad) },
@@ -274,7 +243,7 @@ struct HomeView: View {
     private func emptyPads(_ theme: Theme) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Nenhum som nos pads")
-                .font(.system(size: 24, weight: .regular, design: .serif))
+                .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(theme.ink)
             Text("Clique com o botão direito num pad para escolher um som de fábrica, ou importe o seu.")
                 .font(.system(size: 15))
@@ -287,7 +256,7 @@ struct HomeView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Metrics.zoneGap)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: Metrics.padRadius))
+        .glassPane(radius: Metrics.panelRadius)
     }
 }
 

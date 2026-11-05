@@ -6,10 +6,16 @@ options:
   deploymentTarget:
     macOS: "14.0"
     iOS: "17.0"
+packages:
+  Pow:
+    url: https://github.com/EmergeTools/Pow
+    from: 1.0.0
 targets:
   Vigil:
     type: application
     supportedDestinations: [macOS, iOS]
+    dependencies:
+      - package: Pow
     sources:
       - path: Sources
       - path: Resources/Assets.xcassets

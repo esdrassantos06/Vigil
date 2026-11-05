@@ -31,6 +31,28 @@ final class AppModel {
         }
     }
 
+    /// Machine preferences, kept out of sets like the theme: a set opened on another computer
+    /// must not reach for an interface that is not there.
+    var bufferFrames = AudioGraph.defaultBufferFrames {
+        didSet {
+            guard bufferFrames != oldValue else { return }
+            defaults.set(bufferFrames, forKey: bufferKey)
+            applyOutput()
+        }
+    }
+
+    /// nil follows the system output.
+    var outputDeviceUID: String? {
+        didSet {
+            guard outputDeviceUID != oldValue else { return }
+            defaults.set(outputDeviceUID, forKey: outputKey)
+            applyOutput()
+        }
+    }
+
+    /// What the hardware is running after the last change, for the readout in Settings.
+    var activeBuffer: ActiveBuffer?
+
     var language: Language = .pt {
         didSet {
             guard language != oldValue else { return }
@@ -66,7 +88,10 @@ final class AppModel {
     var settings = Settings() {
         didSet {
             guard settings != oldValue else { return }
-            if settings.padLatch != oldValue.padLatch { heldKeys = [:] }
+            if settings.padLatch != oldValue.padLatch {
+                heldKeys = [:]
+                heldNotes = []
+            }
             applySettings()
             saveSettings()
             scheduleAutosave()
@@ -122,6 +147,8 @@ final class AppModel {
     @ObservationIgnored var releaseTasks: [Int: Task<Void, Never>] = [:]
     /// MIDI keys held down in momentary play, and the note each one plays.
     @ObservationIgnored var heldKeys: [UInt8: Note] = [:]
+    /// Notes held down on screen or on the computer keyboard while the pad is unlatched.
+    @ObservationIgnored var heldNotes: Set<Note> = []
     @ObservationIgnored var sustainDown = false
     @ObservationIgnored var settingsSaveTask: Task<Void, Never>?
     @ObservationIgnored var autosaveTask: Task<Void, Never>?
@@ -133,6 +160,8 @@ final class AppModel {
     @ObservationIgnored let settingsKey = "settings"
     @ObservationIgnored let languageKey = "language"
     @ObservationIgnored let themeKey = "theme"
+    @ObservationIgnored let bufferKey = "bufferFrames"
+    @ObservationIgnored let outputKey = "outputDeviceUID"
     @ObservationIgnored let defaultKitID = "DrumKit1"
 
     init(defaults: UserDefaults = .standard,
@@ -211,6 +240,7 @@ final class AppModel {
             toasts.error(t("Não foi possível iniciar o áudio."))
         }
         reportAudioSetup(graph.setupFailure)
+        restoreOutput()
         tonal.warm()
         metronome.onStart = { [weak self] in self?.tonal.resetPulsePhase() }
         startMidi()

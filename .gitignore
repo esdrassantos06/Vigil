@@ -13,3 +13,7 @@ VigilApp/Vigil.xcodeproj/
 .DS_Store
 
 .specs/
+
+# Impeccable working files: round logs and third-party catalog art.
+.impeccable/questions/
+.impeccable/mocks/worlds/

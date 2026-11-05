@@ -45,7 +45,7 @@ struct ManageList: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(width: 480, height: 560)
+        .sheetSize(width: 480, height: 560)
         .background(ThemeBackdrop())
         .sheet(item: $renaming) { item in
             NamePrompt(
@@ -67,7 +67,7 @@ struct ManageList: View {
         return HStack {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name)
-                    .font(.system(size: 17, weight: .regular, design: .serif))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(theme.ink)
                 if let detail = item.detail {
                     Text(detail)
@@ -103,7 +103,7 @@ struct ManageList: View {
                 .fill(theme.line)
                 .frame(width: 22, height: 48)
             Text(emptyTitle)
-                .font(.system(size: 20, weight: .regular, design: .serif))
+                .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(theme.ink)
             Text(emptyMessage)
                 .font(.system(size: 13))

@@ -33,7 +33,7 @@ struct NamePrompt: View {
                     .fill(theme.accent)
                     .frame(width: 8, height: 18)
                 Text(title)
-                    .font(.system(size: 22, weight: .regular, design: .serif))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(theme.ink)
             }
 
@@ -59,7 +59,11 @@ struct NamePrompt: View {
             .font(.system(size: 15, weight: .medium))
         }
         .padding(Metrics.zoneGap)
+        #if os(macOS)
         .frame(width: 380)
+        #else
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        #endif
         .background(ThemeBackdrop())
         // Without focus here the keystroke falls through to the home handler and fires a pad.
         .task { isFocused = true }

@@ -16,13 +16,12 @@ struct Theme: Sendable {
     let ink: Color
     let accent: Color
     var backdrop: Backdrop = .flat
-    /// Surfaces become translucent material instead of a solid fill.
-    var glass = false
 
+    /// The stage: black ground, dark glass, and gold reserved for what is sounding.
     static let dark = Theme(
-        bg: Color(hex: 0x0A0A0A), surface: Color(hex: 0x141414), surface2: Color(hex: 0x1F1F1F),
-        line: Color(hex: 0x2E2E2E), inkMuted: Color(hex: 0xA4A4A4), ink: Color(hex: 0xF5F5F5),
-        accent: Color(hex: 0xF4A437)
+        bg: Color(hex: 0x050506), surface: Color(hex: 0x121215), surface2: Color(hex: 0x1A1A1F),
+        line: Color(hex: 0x2C2C33), inkMuted: Color(hex: 0x9C9CA4), ink: Color(hex: 0xF4F4F2),
+        accent: Color(hex: 0xFFB54A)
     )
 
     static let light = Theme(
@@ -47,13 +46,12 @@ struct Theme: Sendable {
         backdrop: .gradient(Color(hex: 0x2C2118), Color(hex: 0x140E09))
     )
 
-    /// Deep teal with translucent surfaces.
+    /// Deep teal.
     static let glass = Theme(
         bg: Color(hex: 0x0C1A20), surface: Color(hex: 0x16303A), surface2: Color(hex: 0x1E3F4B),
         line: Color(hex: 0x2F5F70), inkMuted: Color(hex: 0xA7C6D2), ink: Color(hex: 0xF2FAFD),
         accent: Color(hex: 0x5FD3C4),
-        backdrop: .gradient(Color(hex: 0x14313B), Color(hex: 0x060F13)),
-        glass: true
+        backdrop: .gradient(Color(hex: 0x14313B), Color(hex: 0x060F13))
     )
 
     /// Warm cream paper, well off white so it does not read as the default.
@@ -234,8 +232,17 @@ enum PadColor: String, CaseIterable, Codable, Sendable {
 }
 
 enum Metrics {
-    static let padRadius: CGFloat = 12
+    /// Stage strip and the tonal zone: the largest panes.
+    static let paneRadius: CGFloat = 28
+    /// Drum pads.
+    static let padRadius: CGFloat = 22
+    /// Sheet panels, toasts and the empty state.
+    static let panelRadius: CGFloat = 20
+    /// Tonal note cells.
+    static let noteRadius: CGFloat = 18
     static let controlRadius: CGFloat = 10
+    /// Visual height of a pill or round control; its hit area still reaches `minTarget`.
+    static let controlHeight: CGFloat = 32
     static let padGap: CGFloat = 12
     static let zoneGap: CGFloat = 24
     static let minTarget: CGFloat = 44

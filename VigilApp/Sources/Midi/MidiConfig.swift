@@ -55,6 +55,16 @@ enum MidiTarget: Hashable, Sendable {
         }
     }
 
+    /// The MIDI note a fresh install maps to this target: C to B on 60 to 71, the drum pads on
+    /// 36 to 43, where General MIDI and most controllers' drum pads sit.
+    var defaultNote: UInt8? {
+        switch self {
+        case .tonal(let note): Note.allCases.firstIndex(of: note).map { UInt8(60 + $0) }
+        case .drum(let index): (0..<8).contains(index) ? UInt8(36 + index) : nil
+        default: nil
+        }
+    }
+
     private static let drumKeys = ["z", "x", "c", "v", "b", "n", "m", ","]
 
     private static let noteKeys: [Note: String] = [
@@ -118,6 +128,11 @@ final class MidiConfig {
     }
     func target(for binding: MidiBinding) -> MidiTarget? { reverse[binding] }
 
+    /// The computer key printed on a control, or nil when the target has none.
+    func keyHint(for target: MidiTarget) -> String? {
+        binding(for: target, keyboard: true)?.label
+    }
+
     /// Replaces only the shortcut of the same kind, and takes it from whoever held it.
     /// - Parameter binding: the captured key, note or CC.
     /// - Parameter target: the target that will respond to it.
@@ -148,10 +163,13 @@ final class MidiConfig {
         commit()
     }
 
+    /// Puts back the default computer key and MIDI note of every target. Learned CCs stay.
     func restoreDefaults() {
+        let defaults = Stored.defaults
+        let taken = Set(defaults.values.joined())
         for target in MidiTarget.all {
-            var list = bindings(for: target).filter { !$0.isKeyboard }
-            if let key = target.defaultKey { list.append(.key(key)) }
+            let kept = bindings(for: target).filter { if case .cc = $0 { !taken.contains($0) } else { false } }
+            let list = kept + (defaults[target.key] ?? [])
             bindings[target.key] = list.isEmpty ? nil : list
         }
         commit()
@@ -178,8 +196,9 @@ final class MidiConfig {
         static let defaults: [String: [MidiBinding]] = {
             var map: [String: [MidiBinding]] = [:]
             for target in MidiTarget.all {
-                guard let key = target.defaultKey else { continue }
-                map[target.key] = [.key(key)]
+                let list = [target.defaultKey.map { MidiBinding.key($0) },
+                            target.defaultNote.map { MidiBinding.note($0) }].compactMap { $0 }
+                if !list.isEmpty { map[target.key] = list }
             }
             return map
         }()
