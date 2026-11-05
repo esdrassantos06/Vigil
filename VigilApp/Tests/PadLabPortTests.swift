@@ -142,26 +142,27 @@ struct PadLabMidiTests {
         #expect(abs(app.settings.padMaster - 1) < 0.01)
     }
 
-    @Test("An unmapped note plays the tonal pad by pitch class, so a new keyboard works at once")
-    func unmappedNotePlaysPad() {
+    @Test("The default mapping plays C to B from notes 60 to 71, and other notes play nothing")
+    func defaultNotesPlayPad() {
         let app = model()
         app.midi.onEvent?(.note(channel: 1, number: 62, velocity: 100))
         #expect(app.tonal.activeNote == .D)
         app.midi.onEvent?(.note(channel: 1, number: 74, velocity: 100))
-        #expect(app.tonal.activeNote == nil, "the same pitch class an octave up toggles it off")
+        #expect(app.tonal.activeNote == .D, "a note outside the mapping does nothing")
     }
 
-    @Test("Channel 10 notes 36 to 43 hit the drum pads whatever the channel filter says")
-    func channelTenHitsDrums() {
+    @Test("Default drum notes 36 to 43 hit the pads on the chosen channel and on channel 10")
+    func defaultDrumNotes() {
         let app = model()
         app.midi.onEvent?(.note(channel: 10, number: 38, velocity: 127))
         #expect(app.drums.pads[2].isFlashing)
-        #expect(app.tonal.activeNote == nil)
-        app.midi.onEvent?(.note(channel: 10, number: 50, velocity: 127))
-        #expect(app.tonal.activeNote == nil, "a drum-channel note outside the pads plays nothing")
+        app.midi.onEvent?(.note(channel: 1, number: 39, velocity: 127))
+        #expect(app.drums.pads[3].isFlashing)
+        app.midi.onEvent?(.note(channel: 10, number: 62, velocity: 127))
+        #expect(app.tonal.activeNote == nil, "channel 10 only reaches drum targets")
     }
 
-    @Test("A learned note keeps its own target instead of the fallback")
+    @Test("A learned note takes the note away from its default owner")
     func learnedNoteWins() {
         let app = model()
         app.midiConfig.set(.note(62), for: .drum(0))
@@ -170,7 +171,7 @@ struct PadLabMidiTests {
         #expect(app.drums.pads[0].isFlashing)
     }
 
-    @Test("Other channels are still ignored by the fallback")
+    @Test("Other channels are ignored")
     func fallbackRespectsChannel() {
         let app = model()
         app.midi.onEvent?(.note(channel: 3, number: 62, velocity: 100))
