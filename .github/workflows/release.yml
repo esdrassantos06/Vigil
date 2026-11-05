@@ -1,0 +1,35 @@
+name: Release
+
+# Pushing a version tag (v1.2.0) is the manual gate: the tagged commit has to pass CI again,
+# then the .dmg and .ipa from scripts/package.sh are attached to a GitHub Release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Package and publish
+    needs: ci
+    runs-on: macos-26
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Build the dmg and the ipa
+        run: brew install xcodegen && ./scripts/package.sh
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/Vigil.dmg dist/Vigil.ipa \
+            --title "Vigil $GITHUB_REF_NAME" --generate-notes --verify-tag

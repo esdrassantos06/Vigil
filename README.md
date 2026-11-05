@@ -82,6 +82,22 @@ called, because every audio bug in this project so far has been silent: it compi
 and nothing came out. Timing is measured by rendering the graph offline, sample by sample,
 with no wall clock involved.
 
+## Continuous integration and releases
+
+Every pull request and every push to `main` runs `.github/workflows/ci.yml` on a macOS 26
+runner: the full test suite, and a build for iPad. Both are required checks on `main`.
+
+A release starts from a version tag:
+
+```bash
+git tag v1.2.0 && git push origin v1.2.0
+```
+
+The tagged commit runs CI again, then `.github/workflows/release.yml` builds the `.dmg` and the
+unsigned `.ipa` with `scripts/package.sh` and attaches them to a GitHub Release. To roll a
+release back, delete it (or mark it as a pre-release) and the previous one becomes the latest
+again; delete the tag with `git push origin :v1.2.0` if it should not be reused.
+
 ## Installable builds
 
 ```bash
