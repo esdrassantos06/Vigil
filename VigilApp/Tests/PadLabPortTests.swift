@@ -417,6 +417,18 @@ struct SustainPedalTests {
         #expect(app.tonal.activeNote == .D)
     }
 
+    @Test("Switching modes forgets keys held before, so the pedal can stop the pad again")
+    func modeSwitchClearsHeldKeys() {
+        let app = model(latch: false)
+        app.midi.onEvent?(.note(channel: 1, number: 62, velocity: 100))
+        app.settings.padLatch = true
+        app.midi.onEvent?(.noteOff(channel: 1, number: 62))
+        app.settings.padLatch = false
+        app.midi.onEvent?(.control(channel: 1, number: 64, value: 127))
+        app.midi.onEvent?(.control(channel: 1, number: 64, value: 0))
+        #expect(app.tonal.activeNote == nil)
+    }
+
     @Test("An inverted pedal reads low as down")
     func invertedPolarity() {
         let app = model(latch: false, inverted: true)

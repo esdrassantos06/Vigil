@@ -66,6 +66,7 @@ final class AppModel {
     var settings = Settings() {
         didSet {
             guard settings != oldValue else { return }
+            if settings.padLatch != oldValue.padLatch { heldKeys = [:] }
             applySettings()
             saveSettings()
             scheduleAutosave()
