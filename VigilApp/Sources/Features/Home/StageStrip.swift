@@ -1,3 +1,4 @@
+import Pow
 import SwiftUI
 
 /// Everything a performer reaches for mid-song, on one glass strip: the sounding key, tempo
@@ -6,6 +7,8 @@ struct StageStrip: View {
     @Bindable var model: AppModel
 
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var taps = 0
 
     /// Two rows instead of one, for a narrow window such as iPad in portrait.
     var isCompact = false
@@ -87,10 +90,15 @@ struct StageStrip: View {
                         beats: model.settings.timeSignature.beatsPerBar
                     )
                     HStack(spacing: 6) {
-                        Button { model.tapTempo() } label: {
+                        Button {
+                            model.tapTempo()
+                            taps += 1
+                        } label: {
                             Text("Tap").frame(minWidth: 44)
                         }
                         .glassButton()
+                        .changeEffect(.ping(shape: Capsule(), style: theme.accent, count: 1),
+                                      value: taps, isEnabled: !reduceMotion)
                         .help("Tap Tempo")
                         Button { model.metronome.toggle() } label: {
                             Image(systemName: model.metronome.isRunning ? "metronome.fill" : "metronome")

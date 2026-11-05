@@ -1,3 +1,4 @@
+import Pow
 import SwiftUI
 
 struct DrumPadView: View {
@@ -17,6 +18,7 @@ struct DrumPadView: View {
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pickingColor = false
     @State private var trimming = false
 
@@ -40,6 +42,9 @@ struct DrumPadView: View {
         .background(theme.bg.opacity(0.85), in: shape)
         .clipShape(shape)
         .overlay(shape.strokeBorder(border, lineWidth: pad.isFlashing ? 1.5 : 1))
+        .changeEffect(.shine(angle: .degrees(100), duration: 0.45), value: pad.isFlashing,
+                      isEnabled: pad.isFlashing && !reduceMotion)
+        .conditionalEffect(.pushDown, condition: pad.isFlashing && !reduceMotion)
         .popover(isPresented: $pickingColor, arrowEdge: .bottom) {
             ColorSwatchPicker(selected: pad.color) { color in
                 onColor(color)

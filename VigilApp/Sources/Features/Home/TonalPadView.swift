@@ -1,3 +1,4 @@
+import Pow
 import SwiftUI
 
 /// The twelve notes. The sounding one burns with the Vigil flame; the rest recede so the eye
@@ -17,6 +18,7 @@ struct TonalPadGrid: View {
     let onRelease: (Note) -> Void
 
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Explicit rows: a LazyVGrid row will not stretch to the window height.
     private var rows: [[Note]] {
@@ -49,7 +51,7 @@ struct TonalPadGrid: View {
                         .padding(.top, 26)
                         .padding(.bottom, 6)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                        .transition(.opacity)
+                        .transition(reduceMotion ? .opacity : .movingParts.flicker(count: 2))
                 }
             }
             // Lighting and stopping flicker; when another note takes over the old flame goes at
