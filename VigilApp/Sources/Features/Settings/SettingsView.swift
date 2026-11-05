@@ -69,6 +69,7 @@ struct SettingsView: View {
                 }
 
                 Panel("Saída") {
+                    AudioOutputRows(model: model)
                     row("Atraso", "\(Int((model.settings.outputDelay * 1_000).rounded())) ms",
                         Slider(value: $model.settings.outputDelay, in: Settings.outputDelayRange))
                     Text("Atrasa tudo que o Vigil toca, para alinhar com outro equipamento.")
