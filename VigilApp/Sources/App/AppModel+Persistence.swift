@@ -9,16 +9,21 @@ extension AppModel {
         let color: PadColor
         let volume: Double
         let voicing: PadVoicing
+        let trim: ClosedRange<Double>
+        let reverbSend: Double
 
-        init(id: Int, source: PadSource, color: PadColor, volume: Double, voicing: PadVoicing) {
+        init(id: Int, source: PadSource, color: PadColor, volume: Double, voicing: PadVoicing,
+             trim: ClosedRange<Double>, reverbSend: Double) {
             self.id = id
             self.source = source
             self.color = color
             self.volume = volume
             self.voicing = voicing
+            self.trim = trim
+            self.reverbSend = reverbSend
         }
 
-        /// State written before the play mode existed loads as overlapping.
+        /// State written before the play mode or the trim existed loads as overlapping and untrimmed.
         init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             id = try container.decode(Int.self, forKey: .id)
@@ -26,6 +31,8 @@ extension AppModel {
             color = try container.decode(PadColor.self, forKey: .color)
             volume = try container.decode(Double.self, forKey: .volume)
             voicing = try container.decodeIfPresent(PadVoicing.self, forKey: .voicing) ?? .poly
+            trim = try container.decodeIfPresent(ClosedRange<Double>.self, forKey: .trim) ?? PadTrim.full
+            reverbSend = try container.decodeIfPresent(Double.self, forKey: .reverbSend) ?? 0
         }
     }
 
@@ -74,7 +81,7 @@ extension AppModel {
     func persistPads() {
         let state = drums.pads.map {
             PadState(id: $0.id, source: $0.source, color: $0.color,
-                     volume: $0.volume, voicing: $0.voicing)
+                     volume: $0.volume, voicing: $0.voicing, trim: $0.trim, reverbSend: $0.reverbSend)
         }
         defaults.store(state, forKey: padsKey)
         defaults.store(currentKit, forKey: kitKey)
@@ -92,7 +99,9 @@ extension AppModel {
             pad.color = saved.color
             pad.volume = saved.volume
             pad.voicing = saved.voicing
+            pad.reverbSend = saved.reverbSend
             if !apply(source: saved.source, to: pad) { missing += 1 }
+            pad.trim = saved.trim
         }
 
         if currentKit == nil, let inferred = inferredKitID() {
@@ -112,6 +121,21 @@ extension AppModel {
         tonal.cutoff = settings.cutoff
         tonal.highpass = settings.highpass
         tonal.crossfade = settings.crossfade
+        tonal.reverb = settings.padReverb
+        tonal.lowGain = settings.padLow
+        tonal.midGain = settings.padMid
+        tonal.highGain = settings.padHigh
+        tonal.compressorEnabled = settings.padCompressor
+        tonal.compressorThreshold = settings.compressorThreshold
+        tonal.compressorGain = settings.compressorGain
+        tonal.mainLevel = settings.padMainLevel
+        tonal.setLayers(settings.padLayers)
+        drums.highpass = settings.drumHighpass
+        drums.cutoff = settings.drumCutoff
+        drums.reverbPreset = settings.drumReverb
+        drums.reverbLevel = settings.drumReverbLevel
+        graph.outputDelay = settings.outputDelay
+        tonal.setPulse(settings.pulse, rate: settings.pulseRate, depth: settings.pulseDepth, bpm: settings.bpm)
         drums.master = settings.drumMaster
         drums.pan = settings.drumPan
         metronome.bpm = settings.bpm

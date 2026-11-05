@@ -66,6 +66,7 @@ final class AppModel {
     var settings = Settings() {
         didSet {
             guard settings != oldValue else { return }
+            if settings.padLatch != oldValue.padLatch { heldKeys = [:] }
             applySettings()
             saveSettings()
             scheduleAutosave()
@@ -95,7 +96,7 @@ final class AppModel {
 
     func currentSlots() -> [StoredSlot] {
         drums.pads.map {
-            StoredSlot(source: $0.source, color: $0.color, volume: $0.volume, voicing: $0.voicing)
+            StoredSlot(source: $0.source, color: $0.color, volume: $0.volume, voicing: $0.voicing, trim: $0.trim, reverbSend: $0.reverbSend)
         }
     }
 
@@ -119,6 +120,9 @@ final class AppModel {
 
     @ObservationIgnored let graph = AudioGraph()
     @ObservationIgnored var releaseTasks: [Int: Task<Void, Never>] = [:]
+    /// MIDI keys held down in momentary play, and the note each one plays.
+    @ObservationIgnored var heldKeys: [UInt8: Note] = [:]
+    @ObservationIgnored var sustainDown = false
     @ObservationIgnored var settingsSaveTask: Task<Void, Never>?
     @ObservationIgnored var autosaveTask: Task<Void, Never>?
     /// While a set is loading nothing is written back.
@@ -174,6 +178,7 @@ final class AppModel {
             pad.color = palette[index % palette.count]
             pad.volume = 1
             pad.voicing = .poly
+            pad.reverbSend = 0
             if !load(url, into: pad, name: slot.name, source: .native(kit: kit.id, slot: index)) {
                 unreadable += 1
             }
@@ -207,6 +212,7 @@ final class AppModel {
         }
         reportAudioSetup(graph.setupFailure)
         tonal.warm()
+        metronome.onStart = { [weak self] in self?.tonal.resetPulsePhase() }
         startMidi()
 
         if !restorePads() {

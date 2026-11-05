@@ -5,7 +5,7 @@ enum MidiTarget: Hashable, Sendable {
     case tonal(Note)
     case drum(Int)
     case stop
-    case padMaster, cutoff, highpass
+    case padMaster, cutoff, highpass, padReverb, pulseDepth
     case drumMaster
     case drumVolume(Int)
     case metronomeVolume, metronomeToggle, tapTempo
@@ -18,6 +18,8 @@ enum MidiTarget: Hashable, Sendable {
         case .padMaster: "padMaster"
         case .cutoff: "cutoff"
         case .highpass: "highpass"
+        case .padReverb: "padReverb"
+        case .pulseDepth: "pulseDepth"
         case .drumMaster: "drumMaster"
         case .drumVolume(let index): "drumVolume.\(index)"
         case .metronomeVolume: "metronomeVolume"
@@ -34,6 +36,8 @@ enum MidiTarget: Hashable, Sendable {
         case .padMaster: "Volume Master (Pad)"
         case .cutoff: "Cutoff (Pad)"
         case .highpass: "Passa-alta (Pad)"
+        case .padReverb: "Reverb (Pad)"
+        case .pulseDepth: "Pulse (Pad)"
         case .drumMaster: "Master (Drum)"
         case .drumVolume(let index): "Volume (Drum Pad \(index + 1))"
         case .metronomeVolume: "Volume (Metrônomo)"
@@ -61,7 +65,7 @@ enum MidiTarget: Hashable, Sendable {
     static let sections: [(title: String, targets: [MidiTarget])] = [
         ("Pads", Note.allCases.map { .tonal($0) }),
         ("Drum Pads", (0..<8).map { .drum($0) }),
-        ("Live", [.stop, .padMaster, .cutoff, .highpass, .drumMaster]
+        ("Live", [.stop, .padMaster, .cutoff, .highpass, .padReverb, .pulseDepth, .drumMaster]
             + (0..<8).map { .drumVolume($0) }),
         ("Metrônomo", [.metronomeVolume, .metronomeToggle, .tapTempo]),
     ]

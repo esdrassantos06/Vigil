@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (macOS)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      # Hosted macOS runners sometimes boot without an output device, and the live audio
+      # tests need one. BlackHole is a virtual device that is always there once installed.
+      - name: Provide an audio output device
+        run: |
+          brew install --cask blackhole-2ch
+          sudo killall coreaudiod || true
+          sleep 3
+          system_profiler SPAudioDataType | grep -B2 -A6 "Default Output Device: Yes" || system_profiler SPAudioDataType
+      - name: Generate the project
+        run: brew install xcodegen && (cd VigilApp && xcodegen generate --quiet)
+      - name: Test
+        working-directory: VigilApp
+        run: |
+          xcodebuild test \
+            -project Vigil.xcodeproj -scheme VigilTests \
+            -destination 'platform=macOS,arch=arm64' \
+            -resultBundlePath "$RUNNER_TEMP/VigilTests.xcresult"
+      - name: Keep the result bundle
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VigilTests.xcresult
+          path: ${{ runner.temp }}/VigilTests.xcresult
+
+  ipad:
+    name: Build (iPad)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Generate the project
+        run: brew install xcodegen && (cd VigilApp && xcodegen generate --quiet)
+      - name: Build
+        working-directory: VigilApp
+        run: |
+          xcodebuild build \
+            -project Vigil.xcodeproj -scheme Vigil \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO

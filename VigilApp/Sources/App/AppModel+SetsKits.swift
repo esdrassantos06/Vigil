@@ -72,7 +72,9 @@ extension AppModel {
             pad.color = slot.color
             pad.volume = slot.volume
             pad.voicing = slot.voicing
+            pad.reverbSend = slot.reverbSend
             if !apply(source: slot.source, to: pad) { unreadable += 1 }
+            pad.trim = slot.trim
         }
         currentKit = .user(kit.id)
         savePads()

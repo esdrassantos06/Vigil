@@ -83,42 +83,92 @@ enum CrossfadeCurve {
     }
 }
 
+/// One timbre's players and decoded notes. The main sound and each stacked layer own one,
+/// so a layer's fader is its mixer volume and moving it never restarts the loop.
+@MainActor
+private final class PadVoice {
+    let mixer = AVAudioMixerNode()
+    let players = [AVAudioPlayerNode(), AVAudioPlayerNode()]
+    var activeSlot = 0
+    var soundID: String?
+    var buffers: [Note: AVAudioPCMBuffer] = [:]
+    var warmTask: Task<Void, Never>?
+
+    var idlePlayer: AVAudioPlayerNode { players[1 - activeSlot] }
+}
+
 /// One sustained note at a time, looped, crossfading on change. Every note is its own
-/// file, so there is no pitch shifting.
+/// file, so there is no pitch shifting. Up to three extra timbres can sound with the main one.
 @MainActor
 @Observable
 final class TonalPadEngine {
     private(set) var activeNote: Note?
     private(set) var soundID: String = "Default"
+    private(set) var layers: [PadLayer] = []
 
     var master: Double = 0.8 { didSet { mixer.outputVolume = Float(master) } }
     var pan: Double = 0 { didSet { mixer.pan = Float(pan) } }
     var crossfade: Double = 1.5
 
+    /// Fader of the main timbre; the stacked layers carry their own in `layers`.
+    var mainLevel: Double = 1 { didSet { voices[0].mixer.outputVolume = Float(mainLevel) } }
+
     var cutoff: Double = 12_000 { didSet { lowpass.frequency = Float(cutoff) } }
     var highpass: Double = 20 { didSet { highpassBand.frequency = Float(highpass) } }
+
+    /// Shelf and bell gains in dB.
+    var lowGain: Double = 0 { didSet { eq.bands[2].gain = Float(lowGain) } }
+    var midGain: Double = 0 { didSet { eq.bands[3].gain = Float(midGain) } }
+    var highGain: Double = 0 { didSet { eq.bands[4].gain = Float(highGain) } }
+
+    var compressorEnabled = false { didSet { compressor.bypass = !compressorEnabled } }
+    /// dB where compression starts.
+    var compressorThreshold: Double = -20 {
+        didSet { setCompressor(kDynamicsProcessorParam_Threshold, compressorThreshold) }
+    }
+    /// Make-up gain in dB after compression.
+    var compressorGain: Double = 0 {
+        didSet { setCompressor(kDynamicsProcessorParam_OverallGain, compressorGain) }
+    }
+
+    /// Wet share of the reverb, 0 to 1. At zero the unit is bypassed, so it costs nothing.
+    var reverb: Double = 0 {
+        didSet {
+            reverbUnit.wetDryMix = Float(min(max(reverb, 0), 1) * 100)
+            reverbUnit.bypass = reverb <= 0
+        }
+    }
 
     @ObservationIgnored private let graph: AudioGraph
     @ObservationIgnored private let catalog: FactoryCatalog
     @ObservationIgnored private let mixer = AVAudioMixerNode()
-    @ObservationIgnored private let eq = AVAudioUnitEQ(numberOfBands: 2)
-    @ObservationIgnored private let players = [AVAudioPlayerNode(), AVAudioPlayerNode()]
-    @ObservationIgnored private var activeSlot = 0
+    @ObservationIgnored private let eq = AVAudioUnitEQ(numberOfBands: 5)
+    @ObservationIgnored private let compressor = AVAudioUnitEffect(audioComponentDescription: AudioComponentDescription(
+        componentType: kAudioUnitType_Effect,
+        componentSubType: kAudioUnitSubType_DynamicsProcessor,
+        componentManufacturer: kAudioUnitManufacturer_Apple,
+        componentFlags: 0,
+        componentFlagsMask: 0
+    ))
+    @ObservationIgnored private let pulseNode = PulseUnit.makeNode()
+    @ObservationIgnored private let reverbUnit = AVAudioUnitReverb()
+    @ObservationIgnored private let voices = (0...Settings.maxExtraLayers).map { _ in PadVoice() }
     @ObservationIgnored private var fadeTask: Task<Void, Never>?
-    @ObservationIgnored private var warmTask: Task<Void, Never>?
-    @ObservationIgnored private var buffers: [Note: AVAudioPCMBuffer] = [:]
 
     private var lowpass: AVAudioUnitEQFilterParameters { eq.bands[1] }
     private var highpassBand: AVAudioUnitEQFilterParameters { eq.bands[0] }
 
+    /// Voices → pad mixer → filters and tone → compressor → pulse → reverb → main mixer.
     init(graph: AudioGraph, catalog: FactoryCatalog) {
         self.graph = graph
         self.catalog = catalog
 
         let format = graph.mixer.outputFormat(forBus: 0)
-        graph.engine.attach(mixer)
-        graph.engine.attach(eq)
-        for player in players { graph.engine.attach(player) }
+        let engine = graph.engine
+        [mixer, eq, compressor, pulseNode, reverbUnit].forEach(engine.attach)
+        reverbUnit.loadFactoryPreset(.cathedral)
+        reverbUnit.wetDryMix = 0
+        reverbUnit.bypass = true
 
         highpassBand.filterType = .highPass
         highpassBand.frequency = Float(highpass)
@@ -126,39 +176,94 @@ final class TonalPadEngine {
         lowpass.filterType = .lowPass
         lowpass.frequency = Float(cutoff)
         lowpass.bypass = false
-
-        for player in players {
-            graph.engine.connect(player, to: mixer, format: format)
-            player.volume = 0
+        let tone: [(AVAudioUnitEQFilterType, Float)] = [(.lowShelf, 150), (.parametric, 1_000), (.highShelf, 4_000)]
+        for (offset, band) in tone.enumerated() {
+            let parameters = eq.bands[offset + 2]
+            parameters.filterType = band.0
+            parameters.frequency = band.1
+            parameters.bandwidth = 1.5
+            parameters.gain = 0
+            parameters.bypass = false
         }
-        graph.engine.connect(mixer, to: eq, format: format)
-        graph.engine.connect(eq, to: graph.mixer, format: format)
+
+        compressor.bypass = true
+        setCompressor(kDynamicsProcessorParam_Threshold, compressorThreshold)
+        setCompressor(kDynamicsProcessorParam_OverallGain, compressorGain)
+        // ponytail: attack, release and headroom are fixed for a sustained pad; expose them if a sharper sound needs it.
+        setCompressor(kDynamicsProcessorParam_HeadRoom, 5)
+        setCompressor(kDynamicsProcessorParam_AttackTime, 0.01)
+        setCompressor(kDynamicsProcessorParam_ReleaseTime, 0.3)
+
+        for (index, voice) in voices.enumerated() {
+            engine.attach(voice.mixer)
+            for player in voice.players {
+                engine.attach(player)
+                engine.connect(player, to: voice.mixer, format: format)
+                player.volume = 0
+            }
+            engine.connect(voice.mixer, to: mixer, fromBus: 0, toBus: AVAudioNodeBus(index), format: format)
+            voice.mixer.outputVolume = index == 0 ? Float(mainLevel) : 0
+        }
+        voices[0].soundID = soundID
+
+        engine.connect(mixer, to: eq, format: format)
+        engine.connect(eq, to: compressor, format: format)
+        engine.connect(compressor, to: pulseNode, format: format)
+        engine.connect(pulseNode, to: reverbUnit, format: format)
+        engine.connect(reverbUnit, to: graph.mixer, format: format)
         mixer.outputVolume = Float(master)
+    }
+
+    private func setCompressor(_ parameter: AudioUnitParameterID, _ value: Double) {
+        AudioUnitSetParameter(compressor.audioUnit, parameter, kAudioUnitScope_Global, 0, AudioUnitParameterValue(value), 0)
     }
 
     /// The held note keeps sounding on its old buffer until the new one is decoded, so
     /// changing sound mid-note costs the main actor nothing.
     func selectSound(_ id: String) {
         soundID = id
-        buffers.removeAll()
-        warm(playing: activeNote)
+        voices[0].soundID = id
+        voices[0].buffers.removeAll()
+        warm(voices[0], playing: activeNote)
     }
 
-    /// Decodes the current sound's notes off the main actor so playing one never blocks the
-    /// UI. Safe to call again: cached notes are skipped and an older pass is cancelled.
+    /// Stacks up to three timbres on the main one. A level change only moves that layer's
+    /// fader; a new timbre joins the held note once its buffer is decoded.
+    func setLayers(_ requested: [PadLayer]) {
+        let wanted = Array(requested.prefix(Settings.maxExtraLayers))
+        guard wanted != layers else { return }
+        var removedSound = false
+        for (offset, voice) in voices.dropFirst().enumerated() {
+            let layer = wanted[safe: offset]
+            voice.mixer.outputVolume = Float(layer?.level ?? 0)
+            guard voice.soundID != layer?.soundID else { continue }
+            voice.soundID = layer?.soundID
+            voice.buffers.removeAll()
+            if layer == nil { removedSound = true } else { warm(voice, playing: activeNote) }
+        }
+        layers = wanted
+        if removedSound, let activeNote { play(activeNote) }
+    }
+
+    /// Decodes every timbre's notes off the main actor so playing one never blocks the UI.
+    /// Safe to call again: cached notes are skipped and an older pass is cancelled.
     /// - Parameter playing: decoded first and played as soon as it is ready.
     func warm(playing first: Note? = nil) {
-        warmTask?.cancel()
-        let sound = soundID
+        for voice in voices where voice.soundID != nil { warm(voice, playing: first) }
+    }
+
+    private func warm(_ voice: PadVoice, playing first: Note?) {
+        voice.warmTask?.cancel()
+        guard let sound = voice.soundID else { return }
         let order = first.map { held in [held] + Note.allCases.filter { $0 != held } } ?? Note.allCases
-        warmTask = Task { [weak self] in
+        voice.warmTask = Task { [weak self, weak voice] in
             for note in order {
-                guard let self, !Task.isCancelled, soundID == sound else { return }
-                if buffers[note] == nil, let url = url(for: note) {
+                guard let self, let voice, !Task.isCancelled, voice.soundID == sound else { return }
+                if voice.buffers[note] == nil, let url = url(for: note, sound: sound) {
                     await Task.yield()
                     guard let loaded = await Self.decode(url) else { continue }
-                    guard !Task.isCancelled, soundID == sound else { return }
-                    buffers[note] = loaded.buffer
+                    guard !Task.isCancelled, voice.soundID == sound else { return }
+                    voice.buffers[note] = loaded.buffer
                 }
                 if note == first, activeNote == first { play(note) }
             }
@@ -178,74 +283,95 @@ final class TonalPadEngine {
         }.value
     }
 
+    /// Tempo-synced volume shape on the pad. `shape == nil` turns it off.
+    func setPulse(_ shape: PulseShape?, rate: PulseRate, depth: Double, bpm: Double) {
+        (pulseNode.auAudioUnit as? PulseUnit)?.configure(shape: shape, rate: rate, depth: depth, bpm: bpm)
+    }
+
+    /// Lines the next pulse cycle up with a downbeat; called when the metronome starts.
+    func resetPulsePhase() {
+        (pulseNode.auAudioUnit as? PulseUnit)?.resetPhase()
+    }
+
     func toggle(_ note: Note) {
         if activeNote == note { stop() } else { play(note) }
     }
 
     func play(_ note: Note) {
-        guard let buffer = buffer(for: note) else { return }
-
-        let incoming = players[1 - activeSlot]
-
-        incoming.stop()
-        incoming.volume = 0
-        incoming.scheduleBuffer(buffer, at: nil, options: .loops, completionHandler: nil)
-        incoming.play()
-
-        activeSlot = 1 - activeSlot
+        var incoming: [AVAudioPlayerNode] = []
+        for voice in voices {
+            guard let buffer = buffer(for: note, in: voice) else { continue }
+            let player = voice.idlePlayer
+            player.stop()
+            player.volume = 0
+            player.scheduleBuffer(buffer, at: nil, options: .loops, completionHandler: nil)
+            player.play()
+            voice.activeSlot = 1 - voice.activeSlot
+            incoming.append(player)
+        }
+        guard !incoming.isEmpty else { return }
         activeNote = note
         ramp(incoming: incoming, seconds: crossfade)
     }
 
     func stop() {
         activeNote = nil
-        ramp(incoming: nil, seconds: crossfade)
+        ramp(incoming: [], seconds: crossfade)
     }
 
-    private func url(for note: Note) -> URL? {
-        guard let relative = catalog.padSounds[soundID]?[note.rawValue] else { return nil }
+    private func url(for note: Note, sound: String) -> URL? {
+        guard let relative = catalog.padSounds[sound]?[note.rawValue] else { return nil }
         return catalog.url(for: relative)
     }
 
     /// Falls back to decoding inline when `warm()` has not reached this note yet.
-    private func buffer(for note: Note) -> AVAudioPCMBuffer? {
-        if let cached = buffers[note] { return cached }
-        guard let url = url(for: note),
+    private func buffer(for note: Note, in voice: PadVoice) -> AVAudioPCMBuffer? {
+        if let cached = voice.buffers[note] { return cached }
+        guard let sound = voice.soundID, let url = url(for: note, sound: sound),
               let buffer = try? AVAudioPCMBuffer.contents(of: url)
         else { return nil }
 
         let looped = SeamlessLoop.make(from: buffer) ?? buffer
-        buffers[note] = looped
+        voice.buffers[note] = looped
         return looped
     }
 
-    /// Equal-power ramp, authoritative over **every** player: anything that is not `incoming`
+    /// Equal-power ramp, authoritative over **every** player: anything not in `incoming`
     /// falls to zero and is stopped at the end. A cancelled ramp leaves partial volumes, so each
     /// ramp starts from each node's current volume; without that an interrupted player loops forever.
-    private func ramp(incoming: AVAudioPlayerNode?, seconds: Double) {
+    /// Progress follows the clock, not a step count, so a busy main actor delays a step but
+    /// never stretches the fade.
+    private func ramp(incoming: [AVAudioPlayerNode], seconds: Double) {
         fadeTask?.cancel()
 
-        let fading = players.filter { $0 !== incoming }
+        let fading = voices.flatMap(\.players).filter { player in !incoming.contains { $0 === player } }
         let startVolumes = fading.map(\.volume)
-        let startIncoming = incoming?.volume ?? 0
+        let startIncoming = incoming.map(\.volume)
         let steps = CrossfadeCurve.steps(forFadeOf: seconds)
         let stepNanos = UInt64(seconds / Double(steps) * 1_000_000_000)
+        let started = ContinuousClock.now
 
         fadeTask = Task {
-            for step in 1...steps {
+            var progress = 0.0
+            while progress < 1 {
                 guard !Task.isCancelled else { return }
-                let progress = Double(step) / Double(steps)
+                let elapsed = started.duration(to: .now)
+                progress = seconds > 0
+                    ? min(1, (Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18) / seconds)
+                    : 1
                 let (rise, fall) = CrossfadeCurve.gains(at: progress)
 
-                incoming?.volume = max(startIncoming, rise)
+                for (node, start) in zip(incoming, startIncoming) {
+                    node.volume = max(start, rise)
+                }
                 for (node, start) in zip(fading, startVolumes) {
                     node.volume = start * fall
                 }
-                try? await Task.sleep(nanoseconds: stepNanos)
+                if progress < 1 { try? await Task.sleep(nanoseconds: stepNanos) }
             }
             guard !Task.isCancelled else { return }
 
-            incoming?.volume = 1
+            for node in incoming { node.volume = 1 }
             for node in fading {
                 node.volume = 0
                 node.stop()

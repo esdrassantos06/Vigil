@@ -265,7 +265,9 @@ struct HomeView: View {
             onColor: { model.setColor(pad, to: $0) },
             onVoicing: { model.setVoicing(pad, to: $0) },
             onClear: { model.clear(pad) },
-            onVolume: { model.setVolume(pad, to: $0) }
+            onVolume: { model.setVolume(pad, to: $0) },
+            onTrim: { model.setTrim(pad, to: $0) },
+            onReverbSend: { model.setReverbSend(pad, to: $0) }
         )
     }
 
