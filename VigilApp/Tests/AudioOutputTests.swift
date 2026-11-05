@@ -31,11 +31,17 @@ struct AudioOutputTests {
         #expect(AudioOutput.clamp(256, to: 15...4096) == 256)
     }
 
+    /// Neither model starts its engine, so the test never resizes the machine's real device
+    /// under the live audio tests running beside it.
     @Test("Buffer size and output device survive a relaunch")
     func choicesPersist() {
-        let (first, store) = model()
+        let id = UUID().uuidString
+        let store = UserDefaults(suiteName: "vigil.tests.\(id)")!
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("vigil-tests/\(id)")
+        let first = AppModel(defaults: store, samplesDirectory: directory)
         first.bufferFrames = 256
-        let (second, _) = model(store)
+        let second = AppModel(defaults: store, samplesDirectory: directory)
+        second.restoreOutput()
         #expect(second.bufferFrames == 256)
     }
 
@@ -55,6 +61,18 @@ struct AudioOutputTests {
     }
 
     #if os(macOS)
+    @Test("A model whose engine is not running leaves the hardware alone")
+    func noHardwareBeforeStart() {
+        guard let device = AudioOutput.defaultOutputID(),
+              let before = AudioOutput.bufferFrames(of: device) else { return }
+        let id = UUID().uuidString
+        let app = AppModel(defaults: UserDefaults(suiteName: "vigil.tests.\(id)")!,
+                           samplesDirectory: FileManager.default.temporaryDirectory
+                               .appendingPathComponent("vigil-tests/\(id)"))
+        app.bufferFrames = before == 512 ? 256 : 512
+        #expect(AudioOutput.bufferFrames(of: device) == before)
+    }
+
     @Test("Listed outputs have unique identifiers and readable names")
     func devicesAreWellFormed() {
         let devices = AudioOutput.devices()
