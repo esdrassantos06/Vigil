@@ -34,7 +34,8 @@ struct Wordmark: View {
                 .fill(theme.accent)
                 .frame(width: size * 0.42, height: size * 0.92)
             Text("Vigil")
-                .font(.system(size: size, weight: .regular, design: .serif))
+                .font(.system(size: size, weight: .semibold))
+                .tracking(-0.3)
                 .foregroundStyle(theme.ink)
         }
         .accessibilityElement()
@@ -55,7 +56,7 @@ struct SheetHeader: View {
                 .fill(theme.accent)
                 .frame(width: 9, height: 20)
             Text(title)
-                .font(.system(size: 26, weight: .regular, design: .serif))
+                .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(theme.ink)
             Spacer(minLength: 0)
             Button(action: onClose) {
@@ -132,6 +133,16 @@ private struct Card: ViewModifier {
 }
 
 extension View {
+    /// A fixed sheet size on macOS, where a sheet is its own window. On iPad the system sizes
+    /// the sheet, and a fixed frame would leave bare bands down both sides.
+    func sheetSize(width: CGFloat, height: CGFloat) -> some View {
+        #if os(macOS)
+        frame(width: width, height: height)
+        #else
+        frame(maxWidth: .infinity, maxHeight: .infinity)
+        #endif
+    }
+
     func card(_ fill: Color, radius: CGFloat = Metrics.padRadius) -> some View {
         modifier(Card(fill: fill, radius: radius))
     }
@@ -155,7 +166,7 @@ struct Panel<Content: View>: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card(theme.surface)
+        .glassPane(radius: Metrics.panelRadius)
     }
 }
 

@@ -14,7 +14,8 @@ struct VigilApp: App {
             if phase != .active { model.flushPendingWrites() }
         }
         #if os(macOS)
-        .defaultSize(width: 1180, height: 820)
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1280, height: 820)
         .commands { menuBar }
         #endif
     }

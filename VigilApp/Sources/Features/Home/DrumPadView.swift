@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DrumPadView: View {
     let pad: DrumPad
+    let keyHint: String?
     let kits: [FactoryKit]
     let samples: [Sample]
     let onTap: () -> Void
@@ -19,6 +20,9 @@ struct DrumPadView: View {
     @State private var pickingColor = false
     @State private var trimming = false
 
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: Metrics.padRadius, style: .continuous) }
+    private var tint: Color { pad.color.color(scheme) }
+
     var body: some View {
         VStack(spacing: 0) {
             Button(action: onTap) { face }
@@ -31,12 +35,11 @@ struct DrumPadView: View {
                 }
             if pad.isAssigned { volumeStrip }
         }
-        .background(theme.surface2)
-        .clipShape(RoundedRectangle(cornerRadius: Metrics.padRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Metrics.padRadius)
-                .stroke(padBorder, lineWidth: 1)
-        )
+        .background(alignment: .top) { if pad.isAssigned { beam } }
+        .background(tint.opacity(pad.isFlashing ? 0.85 : 0), in: shape)
+        .background(theme.bg.opacity(0.85), in: shape)
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(border, lineWidth: pad.isFlashing ? 1.5 : 1))
         .popover(isPresented: $pickingColor, arrowEdge: .bottom) {
             ColorSwatchPicker(selected: pad.color) { color in
                 onColor(color)
@@ -46,64 +49,73 @@ struct DrumPadView: View {
         .accessibilityLabel(pad.name.map { "\(pad.label), \($0)" } ?? "\(pad.label), vazio")
     }
 
+    /// The pad's light cast down through haze. Only its opacity changes on a hit, so a
+    /// trigger never re-renders a gradient or a blur.
+    private var beam: some View {
+        StageBeam()
+            .fill(LinearGradient(colors: [tint.opacity(0.9), tint.opacity(0.25), tint.opacity(0)],
+                                 startPoint: .top, endPoint: .bottom))
+            .opacity(pad.isFlashing ? 1 : 0.6)
+            .accessibilityHidden(true)
+    }
+
     private var face: some View {
-        ZStack(alignment: .topLeading) {
-            HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(pad.isAssigned ? tint : theme.line)
+                    .frame(width: 8, height: 8)
                 Text(pad.label)
-                    .font(.system(size: 10, weight: .semibold))
-                    .tracking(1.0)
-                    .foregroundStyle(theme.inkMuted)
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(0.8)
+                    .foregroundStyle(pad.isFlashing ? hitInk : theme.inkMuted)
                 Spacer(minLength: 0)
-                if pad.isFlashing {
-                    Circle()
-                        .fill(theme.accent)
-                        .frame(width: 8, height: 8)
-                        .padding(.top, 2)
+                if let keyHint {
+                    Text(verbatim: keyHint)
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(theme.inkMuted)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(theme.line, lineWidth: 1))
                 }
             }
-
+            Spacer(minLength: 8)
             Group {
                 if let name = pad.name {
                     Text(name)
-                        .font(.system(size: 17, weight: .medium))
-                        .foregroundStyle(theme.ink)
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundStyle(pad.isFlashing ? hitInk : theme.ink)
                 } else {
                     Image(systemName: "plus")
                         .font(.system(size: 20, weight: .light))
                         .foregroundStyle(theme.inkMuted)
+                        .frame(maxWidth: .infinity)
                 }
             }
             .lineLimit(2)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .multilineTextAlignment(.leading)
+            if pad.name == nil { Spacer(minLength: 8) }
         }
-        .padding(12)
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, pad.isAssigned ? 4 : 14)
         .frame(maxWidth: .infinity, minHeight: 80, maxHeight: .infinity, alignment: .topLeading)
-        .background(padBackground)
         .contentShape(Rectangle())
     }
 
     private var volumeStrip: some View {
-        HStack(spacing: 8) {
-            Slider(value: Binding(get: { pad.volume }, set: onVolume))
-                .controlSize(.mini)
-            Text("\(Int(pad.volume * 100))%")
-                .font(.system(size: 10, weight: .medium).monospacedDigit())
-                .foregroundStyle(theme.inkMuted)
-                .frame(width: 30, alignment: .trailing)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        LevelBar(value: pad.volume, tint: pad.isFlashing ? hitInk : tint, onChange: onVolume)
+            .accessibilityLabel(Text("Volume \(pad.label)"))
+            .padding(.horizontal, 16)
+            .padding(.bottom, 10)
     }
 
-    private var padBackground: Color {
-        guard pad.isAssigned else { return theme.surface }
-        return pad.color.color(scheme).opacity(pad.isFlashing ? 0.45 : 0.28)
-    }
+    /// Ink on a lit pad, where the pad's own colour is the ground.
+    private var hitInk: Color { Color.black.opacity(0.8) }
 
-    private var padBorder: Color {
+    private var border: Color {
         guard pad.isAssigned else { return theme.line }
-        return pad.color.color(scheme).opacity(pad.isFlashing ? 1 : 0.55)
+        return tint.opacity(pad.isFlashing ? 1 : 0.35)
     }
 
     @ViewBuilder
@@ -150,6 +162,54 @@ struct DrumPadView: View {
             Divider()
             Button("Limpar atribuição", role: .destructive, action: onClear)
         }
+    }
+}
+
+/// A thin level line in the pad's colour that sets the volume by dragging along it.
+struct LevelBar: View {
+    let value: Double
+    let tint: Color
+    let onChange: (Double) -> Void
+
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = max(proxy.size.width, 1)
+            ZStack(alignment: .leading) {
+                Capsule().fill(theme.ink.opacity(0.12))
+                Capsule().fill(tint).frame(width: width * value)
+            }
+            .frame(height: 4)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+                onChange(min(max(drag.location.x / width, 0), 1))
+            })
+        }
+        .frame(height: 20)
+        .accessibilityElement()
+        .accessibilityValue(Text(verbatim: "\(Int((value * 100).rounded()))%"))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: onChange(min(value + 0.05, 1))
+            case .decrement: onChange(max(value - 0.05, 0))
+            @unknown default: break
+            }
+        }
+    }
+}
+
+/// A stage light's cone from a narrow source at the top edge to the full width below.
+struct StageBeam: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX - rect.width * 0.12, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX + rect.width * 0.12, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX + rect.width * 0.1, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX - rect.width * 0.1, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 

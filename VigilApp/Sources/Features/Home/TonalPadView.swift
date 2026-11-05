@@ -1,17 +1,27 @@
 import SwiftUI
 
+/// The twelve notes. The sounding one burns with the Vigil flame; the rest recede so the eye
+/// lands on it at once.
 struct TonalPadGrid: View {
     let activeNote: Note?
     let sharps: Bool
     let major: Bool
-    let onToggle: (Note) -> Void
+    /// The pad master level, which sets how high the flame burns.
+    let intensity: Double
+    /// Notes per row: 4 beside the drums, 6 when the notes sit above them.
+    var columns = 4
+    let keyHint: (Note) -> String?
+    /// Fires on touch down; a latched pad toggles here.
+    let onPress: (Note) -> Void
+    /// Fires when the finger or pointer lifts; an unlatched pad stops here.
+    let onRelease: (Note) -> Void
 
     @Environment(\.theme) private var theme
 
     /// Explicit rows: a LazyVGrid row will not stretch to the window height.
     private var rows: [[Note]] {
-        stride(from: 0, to: Note.allCases.count, by: 3).map {
-            Array(Note.allCases[$0..<min($0 + 3, Note.allCases.count)])
+        stride(from: 0, to: Note.allCases.count, by: columns).map {
+            Array(Note.allCases[$0..<min($0 + columns, Note.allCases.count)])
         }
     }
 
@@ -28,122 +38,92 @@ struct TonalPadGrid: View {
 
     private func pad(_ note: Note) -> some View {
         let isActive = activeNote == note
-        return Button { onToggle(note) } label: {
-            Text(note.label(sharps: sharps, major: major))
-                .font(.system(size: 22, weight: .regular, design: .serif))
-                .foregroundStyle(isActive ? theme.accent : theme.ink)
-                .frame(maxWidth: .infinity, minHeight: 64, maxHeight: .infinity)
-                .background(isActive ? theme.accent.opacity(0.16) : theme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: Metrics.padRadius))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Metrics.padRadius)
-                        .stroke(isActive ? theme.accent : theme.line, lineWidth: isActive ? 1.5 : 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(note.label(sharps: sharps, major: major))
-        .accessibilityAddTraits(isActive ? [.isSelected] : [])
-    }
-}
-
-struct TransportPanel: View {
-    let activeNote: Note?
-    let sharps: Bool
-    let major: Bool
-    let onStopDrums: () -> Void
-
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                ZoneLabel("Tom")
-                HStack(spacing: 8) {
-                    Text(activeNote.map { $0.label(sharps: sharps, major: major) } ?? "—")
-                        .font(.system(size: 34, weight: .regular, design: .serif))
-                        .foregroundStyle(activeNote == nil ? theme.inkMuted : theme.ink)
-                    if activeNote != nil {
-                        Circle()
-                            .fill(theme.accent)
-                            .frame(width: 9, height: 9)
-                    }
+        let recedes = activeNote != nil && !isActive
+        let shape = RoundedRectangle(cornerRadius: Metrics.noteRadius, style: .continuous)
+        let label = note.label(sharps: sharps, major: major)
+        return ZStack(alignment: .bottomLeading) {
+            ZStack {
+                if isActive {
+                    NoteFlame(intensity: intensity)
+                        .aspectRatio(224 / 492, contentMode: .fit)
+                        .padding(.top, 26)
+                        .padding(.bottom, 6)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .transition(.opacity)
                 }
             }
-            Spacer(minLength: 0)
-            StopButton(action: onStopDrums)
+            // Lighting and stopping flicker; when another note takes over the old flame goes at
+            // once, so the eye only follows the new one.
+            .animation(isActive || activeNote == nil ? .easeOut(duration: 0.3) : nil, value: isActive)
+            VStack(alignment: .leading, spacing: 0) {
+                Group {
+                    if isActive {
+                        HStack(spacing: 0) {
+                            Text(verbatim: keyHint(note).map { "\($0) · " } ?? "")
+                            Text("tocando")
+                        }
+                    } else {
+                        Text(verbatim: keyHint(note) ?? " ")
+                    }
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(isActive ? theme.accent : theme.inkMuted)
+                Spacer(minLength: 4)
+                Text(verbatim: label)
+                    .font(.system(size: 30, weight: .bold))
+                    .tracking(-0.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .foregroundStyle(isActive ? theme.ink : theme.ink.opacity(0.82))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card(theme.surface)
+        .frame(maxWidth: .infinity, minHeight: 64, maxHeight: .infinity, alignment: .bottomLeading)
+        .background(isActive ? AnyShapeStyle(activeFill) : AnyShapeStyle(theme.surface.opacity(0.7)), in: shape)
+        .overlay(shape.strokeBorder(isActive ? theme.accent.opacity(0.6) : theme.line, lineWidth: 1))
+        .contentShape(shape)
+        .opacity(recedes ? 0.72 : 1)
+        .onLongPressGesture(minimumDuration: .infinity) {} onPressingChanged: { isDown in
+            isDown ? onPress(note) : onRelease(note)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onPress(note) }
+        .accessibilityLabel(Text(verbatim: label))
+        .accessibilityAddTraits(isActive ? [.isSelected] : [])
+    }
+
+    private var activeFill: LinearGradient {
+        LinearGradient(colors: [theme.accent.opacity(0.32), theme.surface.opacity(0.4)],
+                       startPoint: .bottom, endPoint: .top)
     }
 }
 
-struct StepperSelector: View {
-    let title: String
-    let value: String
-    let onPrevious: () -> Void
-    let onNext: () -> Void
+/// Under the notes: whether a note latches or plays only while held, and the crossfade time.
+struct TonalFooter: View {
+    @Binding var latch: Bool
+    let crossfade: Double
 
     @Environment(\.theme) private var theme
 
     var body: some View {
-        HStack(spacing: 8) {
-            ZoneLabel(LocalizedStringKey(title))
-                .frame(width: 68, alignment: .leading)
-
-            arrow("chevron.left", action: onPrevious)
-
-            Text(value)
-                .font(.system(size: 19, weight: .regular, design: .serif))
-                .foregroundStyle(theme.ink)
-                .frame(maxWidth: .infinity)
-                .lineLimit(1)
-
-            arrow("chevron.right", action: onNext)
+        HStack {
+            SlidingPicker(label: "Ao soltar a tecla", selection: $latch, options: [
+                SlidingOption(value: true, title: "Travar", symbol: "lock.fill"),
+                SlidingOption(value: false, title: "Segurar", symbol: "hand.point.up.left.fill"),
+            ])
+            Spacer(minLength: 8)
+            StripLabel("Crossfade", detail: crossfade.formatted(.number.precision(.fractionLength(1))) + " s")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .card(theme.surface, radius: Metrics.controlRadius)
-    }
-
-    private func arrow(_ symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(theme.inkMuted)
-                .frame(width: Metrics.minTarget, height: 32)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 }
 
-#Preview("Pad tonal — com nota ativa") {
-    TonalPadGrid(activeNote: .C, sharps: true, major: true, onToggle: { _ in })
+#Preview("Notas — com nota ativa") {
+    TonalPadGrid(activeNote: .D, sharps: true, major: true, intensity: 0.8,
+                 keyHint: { _ in "S" }, onPress: { _ in }, onRelease: { _ in })
         .environment(\.theme, .dark)
         .padding()
         .background(Theme.dark.bg)
-        .frame(width: 260)
-}
-
-#Preview("Transporte") {
-    TransportPanel(
-        activeNote: .Fs,
-        sharps: true,
-        major: true,
-        onStopDrums: {}
-    )
-    .environment(\.theme, .dark)
-    .padding()
-    .background(Theme.dark.bg)
-    .frame(width: 260)
-}
-
-#Preview("Seletor") {
-    StepperSelector(title: "Pad", value: "Shimmer", onPrevious: {}, onNext: {})
-        .environment(\.theme, .dark)
-        .padding()
-        .background(Theme.dark.bg)
-        .frame(width: 320)
+        .frame(width: 520, height: 520)
 }

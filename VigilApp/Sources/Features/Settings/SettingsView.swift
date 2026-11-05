@@ -6,9 +6,12 @@ struct SettingsView: View {
     let onOpenMidi: () -> Void
 
     @Environment(\.theme) private var theme
+    @State private var isWide = true
 
     var body: some View {
         Sheet("Configurações", onClose: onClose) {
+            columns {
+            VStack(spacing: 14) {
                 Panel("Pad") {
                     percentRow("Master", value: $model.settings.padMaster)
                     panRow("Pan", value: $model.settings.padPan)
@@ -76,7 +79,8 @@ struct SettingsView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(theme.inkMuted)
                 }
-
+            }
+            VStack(spacing: 14) {
                 Panel("Metrônomo") {
                     row("Tempo", "\(Int(model.settings.bpm)) BPM",
                         Slider(value: $model.settings.bpm, in: Settings.bpmRange, step: 1))
@@ -164,8 +168,18 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.plain)
                 }
+            }
+            }
         }
-        .frame(width: 460, height: 640)
+        .sheetSize(width: 860, height: 680)
+        .onGeometryChange(for: Bool.self) { $0.size.width >= 640 } action: { isWide = $0 }
+    }
+
+    /// Two columns when the sheet has the room, one otherwise.
+    private var columns: AnyLayout {
+        isWide
+            ? AnyLayout(HStackLayout(alignment: .top, spacing: 14))
+            : AnyLayout(VStackLayout(spacing: 14))
     }
 
     private func themeRow(_ title: LocalizedStringKey, _ options: [AppTheme]) -> some View {

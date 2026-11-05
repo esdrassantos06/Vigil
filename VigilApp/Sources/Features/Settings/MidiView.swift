@@ -18,7 +18,7 @@ struct MidiView: View {
         } footer: {
             footer
         }
-        .frame(width: 560, height: 640)
+        .sheetSize(width: 560, height: 640)
         // Without focus .onKeyPress never fires.
         .focusable()
         .focusEffectDisabled()

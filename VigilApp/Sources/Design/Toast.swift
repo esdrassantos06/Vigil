@@ -93,8 +93,7 @@ struct ToastLayer: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
         .frame(maxWidth: 380, alignment: .leading)
-        .card(theme.surface)
-        .shadow(color: .black.opacity(0.28), radius: 8, y: 2)
+        .glassPane(radius: Metrics.panelRadius)
     }
 
     private func icon(_ kind: Toast.Kind) -> String {
