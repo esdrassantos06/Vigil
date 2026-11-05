@@ -53,7 +53,10 @@ struct OfflineMetronomeTests {
 
         let total = result.intervals.reduce(0, +)
         let ideal = result.expected * Double(result.intervals.count)
-        #expect(abs(total - ideal) < 1.0, "accumulated \(abs(total - ideal)) ms of drift")
+        // One render block (64 frames, 1.45 ms at 44.1 kHz) is the quantisation floor: a click
+        // on a block edge moves the total by that much without any drift. The truncation this
+        // guards against adds about 2.5 ms over the minute, well past it.
+        #expect(abs(total - ideal) < 1.5, "accumulated \(abs(total - ideal)) ms of drift")
     }
 
     @Test("Eighth-note signatures click twice as often")

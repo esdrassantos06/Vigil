@@ -48,6 +48,9 @@ final class AudioGraph {
     func start() throws {
         guard !engine.isRunning else { return }
         try engine.start()
+        #if os(macOS)
+        muteHardwareUnderTests()
+        #endif
     }
 
     func attach(_ node: AVAudioNode, format: AVAudioFormat?) {
@@ -71,6 +74,12 @@ final class AudioGraph {
             try session.setActive(true)
         } catch {
             setupFailure = AudioSessionError.sessionUnavailable
+        }
+        #elseif os(macOS)
+        // Set while the graph is built, before anything renders: the same value from every
+        // graph is then a no-op, while changing it later reconfigures engines already running.
+        if let device = AudioOutput.defaultOutputID() {
+            AudioOutput.setBufferFrames(Self.defaultBufferFrames, on: device)
         }
         #endif
     }
@@ -136,7 +145,17 @@ final class AudioGraph {
                                           UInt32(MemoryLayout<AudioDeviceID>.size))
         engine.prepare()
         if wasRunning { try engine.start() }
+        muteHardwareUnderTests()
         guard status == noErr else { throw OutputError.deviceRefused }
+    }
+
+    /// The test scheme sets VIGIL_MUTE_OUTPUT so the suite's live engines stay off the
+    /// speakers. Only the hardware output goes quiet: taps on the mixer and everything before
+    /// it still see the full signal, and offline renders never reach this unit.
+    private func muteHardwareUnderTests() {
+        guard ProcessInfo.processInfo.environment["VIGIL_MUTE_OUTPUT"] == "1",
+              let unit = engine.outputNode.audioUnit else { return }
+        AudioUnitSetParameter(unit, kHALOutputParam_Volume, kAudioUnitScope_Global, 0, 0, 0)
     }
     #endif
 }
